@@ -4,5 +4,3 @@ webSocket的Package->server.go
 之後再解決，開個白名單
 
 
-hub上面多加一個group
-來控制在同一個channel互通

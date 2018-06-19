@@ -2,9 +2,10 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
+
+	ws "./ws"
 
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
@@ -23,14 +24,11 @@ var db *sql.DB
 // Redis
 var goRedis *redis.Client
 
-// Group
-var group *Group
-
 func init() {
 	connectDb()
 	connectRedis()
-	createGroup()
-	createLobby()
+	ws.CreateGroup()
+	ws.CreateLobby()
 }
 
 func main() {
@@ -40,6 +38,7 @@ func main() {
 	r.HandleFunc("/ws", wsInstance).Methods("GET")
 	r.HandleFunc("/test", test).Methods("GET")
 	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET")
+	r.HandleFunc("/api/creategame", gameInstance).Methods("GET")
 
 	err := http.ListenAndServe(":8989", r)
 	if err != nil {
@@ -57,13 +56,5 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
-	for hub, boolan := range group.hubs {
-		fmt.Println("hub:")
-		fmt.Println(hub)
-		fmt.Println(boolan)
-		for address, boolan := range hub.clients {
-			fmt.Println(address)
-			fmt.Println(boolan)
-		}
-	}
+	ws.CheckAllChannel()
 }

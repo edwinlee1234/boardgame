@@ -1,4 +1,4 @@
-package main
+package ws
 
 // Hub 用來放連線的地方
 type Hub struct {
@@ -19,7 +19,8 @@ type Hub struct {
 
 var hubFindClientChan = make(chan *Client)
 
-func newHub(id int) *Hub {
+// NewHub return *Hub
+func NewHub(id int) *Hub {
 	return &Hub{
 		id:             id,
 		broadcast:      make(chan []byte),
@@ -42,7 +43,7 @@ func (h *Hub) findClient(ID string) {
 	hubFindClientChan <- nil
 }
 
-func (h *Hub) run() {
+func (h *Hub) Run() {
 	for {
 		select {
 		// 這邊會扔地址進來

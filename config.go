@@ -1,6 +1,7 @@
 package main
 
-var lobbyID = 1
+// 遊戲狀態
+var notOpen = 0
 
 var channelSupport = map[string]bool{
 	"jaipur": true,

@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -23,4 +24,17 @@ func connectDb() {
 		"mysql", dbUser+":"+dbPassword+"@tcp("+dbHost+":"+dbPort+")/"+dbName+"?charset=utf8mb4")
 
 	checkErr("MySQL Connect", err)
+}
+
+// 	新增一局遊戲
+func createGame(game string) int64 {
+	stmt, err := db.Prepare("INSERT INTO game_state SET type = ?")
+	checkErr("CRUD prepare Error", err)
+
+	val, err := stmt.Exec(game)
+	id, _ := val.LastInsertId()
+	fmt.Println(id)
+	checkErr("CRUD Exec Error", err)
+
+	return id
 }

@@ -1,10 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
+
+	ws "./ws"
 
 	"github.com/satori/go.uuid"
 )
@@ -19,7 +20,7 @@ func wsInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 判斷遊戲開關
+	// 判斷頻道開關
 	channel := channelParams[0]
 	if open, exist := channelSupport[channel]; !exist || !open {
 		log.Println(channel, " is not support")
@@ -29,28 +30,8 @@ func wsInstance(w http.ResponseWriter, r *http.Request) {
 	userUUID := getUserUUID(w, r)
 	fmt.Println("UUID", userUUID)
 
-	var id int
-	var hub *Hub
-
-	// 去Group搜尋hub
-	if channel == "lobby" {
-		id = lobbyID
-		group.findHubChan <- id
-		hub = <-groupFindHubChan
-	}
-
-	fmt.Println("hub", hub)
-	// 如果Group沒有這個hub，新增一個
-	if hub == nil {
-		flag.Parse()
-		hub = newHub(id)
-		go hub.run()
-
-		group.addHubChan <- hub
-	}
-
-	// 新增Client
-	serveWs(userUUID, hub, w, r)
+	// 連線ws
+	ws.ConnWs(channel, userUUID, w, r)
 }
 
 // 取得UUID
@@ -70,11 +51,4 @@ func getUserUUID(w http.ResponseWriter, r *http.Request) string {
 	}
 
 	return userUUID
-}
-
-func createLobby() {
-	hub := newHub(lobbyID)
-	go hub.run()
-
-	group.addHubChan <- hub
 }

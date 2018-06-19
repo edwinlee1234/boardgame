@@ -1,4 +1,4 @@
-package main
+package ws
 
 // Group 用來管理一堆Hub
 // 新增刪除搜尋hub
@@ -10,11 +10,14 @@ type Group struct {
 }
 
 var groupFindHubChan = make(chan *Hub)
+var group *Group
 
-// init Group
-func createGroup() {
+// CreateGroup init Group
+func CreateGroup() *Group {
 	group = newGroup()
 	go group.run()
+
+	return group
 }
 
 func newGroup() *Group {
