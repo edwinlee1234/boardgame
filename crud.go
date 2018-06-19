@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -33,7 +32,6 @@ func createGame(game string) int64 {
 
 	val, err := stmt.Exec(game)
 	id, _ := val.LastInsertId()
-	fmt.Println(id)
 	checkErr("CRUD Exec Error", err)
 
 	return id

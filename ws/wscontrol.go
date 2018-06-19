@@ -28,25 +28,18 @@ func CreateLobby() {
 }
 
 // ConnWs 連線websocket
-func ConnWs(channel string, UUID string, w http.ResponseWriter, r *http.Request) {
-	var id int
+func ConnWs(channelID int, UUID string, w http.ResponseWriter, r *http.Request) {
 	var hub *Hub
 
 	// 去Group搜尋hub
-	if channel == "lobby" {
-		id = lobbyID
-		group.findHubChan <- id
-		hub = <-groupFindHubChan
-	}
-
-	// TODO
-	// 用id去找個一局遊戲的hub
+	group.findHubChan <- channelID
+	hub = <-groupFindHubChan
 
 	fmt.Println("hub", hub)
 	// 如果Group沒有這個hub，新增一個
 	if hub == nil {
 		flag.Parse()
-		hub = NewHub(id)
+		hub = NewHub(channelID)
 		go hub.Run()
 
 		group.addHubChan <- hub

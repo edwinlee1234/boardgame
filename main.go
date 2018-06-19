@@ -39,6 +39,7 @@ func main() {
 	r.HandleFunc("/test", test).Methods("GET")
 	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET")
 	r.HandleFunc("/api/creategame", gameInstance).Methods("GET")
+	r.HandleFunc("/api/game/openplayer", gameOpen).Methods("PUT")
 
 	err := http.ListenAndServe(":8989", r)
 	if err != nil {
@@ -49,10 +50,11 @@ func main() {
 func allowOrigin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "http://localhost:8787")
 	w.Header().Add("Access-Control-Allow-Headers", "Authorization")
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	supportGame(w, r)
+	getUserUUID(w, r)
 }
 
 func test(w http.ResponseWriter, r *http.Request) {

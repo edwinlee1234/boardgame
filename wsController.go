@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	ws "./ws"
 
@@ -30,8 +31,25 @@ func wsInstance(w http.ResponseWriter, r *http.Request) {
 	userUUID := getUserUUID(w, r)
 	fmt.Println("UUID", userUUID)
 
+	var channelID int
+	channelIDArrs := r.URL.Query()["id"]
+	if len(channelParams) > 1 {
+		var err error
+		channelIDArr := channelIDArrs[0]
+		channelID, err = strconv.Atoi(channelIDArr)
+
+		if checkErr("id Error", err) {
+			fmt.Println("create channel error")
+			return
+		}
+	}
+
+	if channel == "lobby" {
+		channelID = 1
+	}
+
 	// 連線ws
-	ws.ConnWs(channel, userUUID, w, r)
+	ws.ConnWs(channelID, userUUID, w, r)
 }
 
 // 取得UUID
