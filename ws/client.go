@@ -44,6 +44,7 @@ var (
 	space   = []byte{' '}
 )
 
+// client傳東西過來
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
@@ -73,6 +74,7 @@ func (c *Client) readPump() {
 	}
 }
 
+// 傳東西去client
 func (c *Client) writePump() {
 	// 不太懂這個ticker在幹麻(先保留)
 	ticker := time.NewTicker(pingPeriod)

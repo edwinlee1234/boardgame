@@ -1,8 +1,10 @@
 package ws
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -21,7 +23,7 @@ func CheckAllChannel() {
 
 // CreateLobby 開server的時候就會create一個lobby的hub
 func CreateLobby() {
-	hub := NewHub(lobbyID)
+	hub := NewHub(LobbyID)
 	go hub.Run()
 
 	group.addHubChan <- hub
@@ -47,4 +49,19 @@ func ConnWs(channelID int, UUID string, w http.ResponseWriter, r *http.Request) 
 
 	// 新增Client
 	serveWs(UUID, hub, w, r)
+}
+
+// BroadcastChannel 推播某頻道
+func BroadcastChannel(channelID int, data []byte) {
+	group.findHubChan <- channelID
+	hub := <-groupFindHubChan
+
+	if hub == nil {
+		log.Println("不存在這hub id: ", channelID)
+		return
+	}
+	// 格或處理
+	message := bytes.TrimSpace(bytes.Replace(data, newline, space, -1))
+	// 針對hub裡面的連線都推播
+	hub.broadcast <- message
 }

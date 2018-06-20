@@ -36,3 +36,11 @@ func createGame(game string) int64 {
 
 	return id
 }
+
+func findGameByGameID(id int) (gameType string, state int, seat int, time string) {
+	row := db.QueryRow("SELECT `type`, `state`, `seat`, `insert_time` game_state FROM `game_state` WHERE `id` = ? LIMIT 1", id)
+	err := row.Scan(&gameType, &state, &seat, &time)
+	checkErr("find gameType Error:", err)
+
+	return gameType, state, seat, time
+}

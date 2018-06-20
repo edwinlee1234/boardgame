@@ -1,3 +1,3 @@
 package ws
 
-var lobbyID = 1
+var LobbyID = 1
