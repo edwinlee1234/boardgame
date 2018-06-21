@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -98,19 +99,13 @@ func supportGame(w http.ResponseWriter, r *http.Request) {
 // 開放玩家進來
 func gameOpen(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
-	IDArrs := r.URL.Query()["id"]
-	if len(IDArrs) < 1 {
-		log.Println("Url Param 'id' is missing")
+	if r.Method == "OPTIONS" {
 		return
 	}
+	ParamID, err := checkURLGameID(r)
 
-	if !valid.IsInt(IDArrs[0]) {
-		log.Println("GameID ERROR ID不是數字")
-		return
-	}
-
-	ParamID, err := strconv.Atoi(IDArrs[0])
-	if checkErr("ID 轉換錯誤", err) {
+	if err != nil {
+		log.Println(err)
 		return
 	}
 
@@ -199,6 +194,112 @@ func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(roomInfo)
 }
 
+// 加入Room
+func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
+	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
+	var res Response
+	res.Data = map[string][]interface{}{}
+
+	// 檢查ID存不存在
+	gameID, err := checkURLGameID(r)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	// 檢查有沒有正在進行中的遊戲
+	session, _ := store.Get(r, "userGame")
+	oldGameID, ok := session.Values["gameID"]
+
+	// 有就不給開新的
+	if ok {
+		res.Status = wrong
+		res.Data["oldGameID"] = []interface{}{
+			oldGameID,
+		}
+		json.NewEncoder(w).Encode(res)
+
+		log.Println("Exist old gameID: ", oldGameID)
+		return
+	}
+
+	// 寫入Redis
+	// 把開這一桌的人推進去Redis
+	userUUID := getUserUUID(w, r)
+	rediskey := strconv.Itoa(gameID) + "_players" // int -> string
+	// 已在的玩家
+	playersList, _ := goRedis.Get(rediskey).Result()
+	var playersData Players
+	json.Unmarshal([]byte(playersList), &playersData)
+
+	// 判斷人數滿了沒
+	gameType, state, seat, _ := findGameByGameID(gameID)
+	if seat <= len(playersData) {
+		res.Status = wrong
+		res.Data["msg"] = []interface{}{
+			"滿人了",
+		}
+		json.NewEncoder(w).Encode(res)
+
+		log.Println("滿人了: ", gameID)
+		return
+	}
+
+	// 判斷是否開放玩家
+	if state != opening {
+		res.Status = wrong
+		res.Data["msg"] = []interface{}{
+			"開局了",
+		}
+		json.NewEncoder(w).Encode(res)
+
+		log.Println("開局了: ", gameID)
+		return
+	}
+
+	// 插入新的玩家
+	playersData = append(playersData, Player{
+		ID:   1,
+		UUID: userUUID,
+		Name: userUUID,
+	})
+
+	// jsonencode 加到redis
+	playersJSON, _ := json.Marshal(playersData)
+	goRedis.Set(rediskey, playersJSON, 0)
+
+	// 記到玩家session
+	session.Values["gameID"] = gameID
+	session.Save(r, w)
+
+	// 推播
+	err = pushChangePlayer(gameID, playersData)
+
+	if err != nil {
+		log.Println("推播失敗: ", err)
+		return
+	}
+
+	res.Status = success
+	res.Data["gameID"] = []interface{}{
+		gameID,
+	}
+	res.Data["gameType"] = []interface{}{
+		gameType,
+	}
+	json.NewEncoder(w).Encode(res)
+
+	return
+}
+
+// 刪掉Room
+func gameRoomClose(w http.ResponseWriter, r *http.Request) {
+
+}
+
 // API 檢查是否支援這遊戲
 func checkGameSupport(game string) bool {
 	// 判斷遊戲開關
@@ -207,4 +308,23 @@ func checkGameSupport(game string) bool {
 	}
 
 	return true
+}
+
+// 檢查URL的GameID參數是否支援這遊戲
+func checkURLGameID(r *http.Request) (int, error) {
+	IDArrs := r.URL.Query()["id"]
+	if len(IDArrs) < 1 {
+		return 0, errors.New("Url Param 'id' is missing")
+	}
+
+	if !valid.IsInt(IDArrs[0]) {
+		return 0, errors.New("GameID ERROR ID不是數字")
+	}
+
+	ParamID, err := strconv.Atoi(IDArrs[0])
+	if err != nil {
+		return 0, errors.New("ID 轉換錯誤")
+	}
+
+	return ParamID, nil
 }

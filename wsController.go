@@ -33,7 +33,7 @@ func wsInstance(w http.ResponseWriter, r *http.Request) {
 
 	var channelID int
 	channelIDArrs := r.URL.Query()["id"]
-	if len(channelParams) > 1 {
+	if len(channelIDArrs) >= 1 {
 		var err error
 		channelIDArr := channelIDArrs[0]
 		channelID, err = strconv.Atoi(channelIDArr)

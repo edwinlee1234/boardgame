@@ -42,6 +42,8 @@ func main() {
 	r.HandleFunc("/api/creategame", gameInstance).Methods("GET")
 	r.HandleFunc("/api/game/openplayer", gameOpen).Methods("PUT", "OPTIONS")
 	r.HandleFunc("/api/game/roomInfo", gameRoomInfo).Methods("GET")
+	r.HandleFunc("/api/game/joingame", gameRoomJoin).Methods("PUT", "OPTIONS")
+	r.HandleFunc("/api/game/roomClose", gameRoomClose).Methods("PUT", "OPTIONS")
 
 	err := http.ListenAndServe(":8989", r)
 	if err != nil {

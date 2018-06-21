@@ -9,12 +9,12 @@ import (
 	ws "./ws"
 )
 
-func pushOpenGame(GameID int) error {
+func pushOpenGame(gameID int) error {
 	var openGame OpenGame
 	// 用gameID去撈DB
-	gameType, state, seat, time := findGameByGameID(GameID)
+	gameType, state, seat, time := findGameByGameID(gameID)
 
-	rediskey := strconv.Itoa(GameID) + "_players"
+	rediskey := strconv.Itoa(gameID) + "_players"
 	playersList, _ := goRedis.Get(rediskey).Result()
 	var playersData Players
 	json.Unmarshal([]byte(playersList), &playersData)
@@ -35,7 +35,7 @@ func pushOpenGame(GameID int) error {
 	seat = seat - len(playersData)
 
 	openGame.Event = "openGame"
-	openGame.Data.GameID = GameID
+	openGame.Data.GameID = gameID
 	openGame.Data.GameType = gameType
 	openGame.Data.EmptySeat = seat
 	openGame.Data.CreateTime = time
@@ -51,7 +51,23 @@ func pushOpenGame(GameID int) error {
 	ws.BroadcastChannel(ws.LobbyID, broadcastData)
 
 	// 改變state
-	changeGameState(GameID, opening)
+	changeGameState(gameID, opening)
+
+	return nil
+}
+
+// 有人加入遊戲的推播
+func pushChangePlayer(gameID int, players Players) error {
+	var changePlayer ChangePlayer
+	changePlayer.Event = "ChangePlayer"
+	changePlayer.Data = players
+
+	broadcastData, err := json.Marshal(changePlayer)
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastChannel(gameID, broadcastData)
 
 	return nil
 }

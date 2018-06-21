@@ -12,7 +12,7 @@ import (
 func CheckAllChannel() {
 	for hub, boolan := range group.hubs {
 		fmt.Println("hub:")
-		fmt.Println(hub)
+		fmt.Println(hub.id)
 		fmt.Println(boolan)
 		for address, boolan := range hub.clients {
 			fmt.Println(address)
