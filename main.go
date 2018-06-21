@@ -2,10 +2,8 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 
 	ws "./ws"
 
@@ -43,6 +41,7 @@ func main() {
 	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET")
 	r.HandleFunc("/api/creategame", gameInstance).Methods("GET")
 	r.HandleFunc("/api/game/openplayer", gameOpen).Methods("PUT", "OPTIONS")
+	r.HandleFunc("/api/game/roomInfo", gameRoomInfo).Methods("GET")
 
 	err := http.ListenAndServe(":8989", r)
 	if err != nil {
@@ -64,16 +63,6 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 func test(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
-	game := "jaipur"
-	id := 94
-	userUUID := getUserUUID(w, r)
-	rediskey := game + strconv.Itoa(id) // int -> string
-	goRedis.RPush(rediskey, "", userUUID)
-
-	players := goRedis.LRange(rediskey, 1, -1)
-	fmt.Println(players)
-	players2 := goRedis.LRange(rediskey, 1, 100)
-	fmt.Println(players2)
 }
 
 func showChannel(w http.ResponseWriter, r *http.Request) {
