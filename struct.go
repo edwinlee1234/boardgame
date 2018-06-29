@@ -47,3 +47,15 @@ type ChangePlayer struct {
 	Event string  `json:"event"`
 	Data  Players `json:"data"`
 }
+
+// StartGame 推播開始遊戲的格式
+type StartGame struct {
+	Event string        `json:"event"`
+	Data  StartGameData `json:"data"`
+}
+
+// StartGameData 推播開始遊戲的格式
+type StartGameData struct {
+	GameID   int    `json:"gameID"`
+	GameType string `json:"gameType"`
+}

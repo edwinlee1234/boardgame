@@ -71,3 +71,23 @@ func pushChangePlayer(gameID int, players Players) error {
 
 	return nil
 }
+
+// 開始遊戲
+func pushStartGame(gameID int, gameType string) error {
+	var startGame StartGame
+	var startGameData StartGameData
+	startGameData.GameID = gameID
+	startGameData.GameType = gameType
+
+	startGame.Event = "StartGame"
+	startGame.Data = startGameData
+
+	broadcastData, err := json.Marshal(startGame)
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastChannel(gameID, broadcastData)
+
+	return nil
+}

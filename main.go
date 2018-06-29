@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -38,12 +39,13 @@ func main() {
 	r.HandleFunc("/test", test).Methods("GET")
 	r.HandleFunc("/ws", wsInstance).Methods("GET")
 	r.HandleFunc("/showChannel", showChannel).Methods("GET")
-	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET")
-	r.HandleFunc("/api/creategame", gameInstance).Methods("GET")
+	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/creategame", gameInstance).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/game/openplayer", gameOpen).Methods("PUT", "OPTIONS")
-	r.HandleFunc("/api/game/roomInfo", gameRoomInfo).Methods("GET")
+	r.HandleFunc("/api/game/roomInfo", gameRoomInfo).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/game/joingame", gameRoomJoin).Methods("PUT", "OPTIONS")
 	r.HandleFunc("/api/game/roomClose", gameRoomClose).Methods("PUT", "OPTIONS")
+	r.HandleFunc("/api/game/startgame", gameStart).Methods("PUT", "OPTIONS")
 
 	err := http.ListenAndServe(":8989", r)
 	if err != nil {
@@ -53,10 +55,9 @@ func main() {
 
 func allowOrigin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "http://localhost:8787")
-	w.Header().Add("Access-Control-Allow-Headers", "Authorization")
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header")
+	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	w.Header().Add("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header, x-xsrf-token")
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +66,13 @@ func index(w http.ResponseWriter, r *http.Request) {
 
 func test(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
+	rediskey := "_gameType"
+	gameType, err := goRedis.Get(rediskey).Result()
+	if gameType == "" {
+		fmt.Println("!!")
+	}
+	fmt.Println(err)
+	fmt.Println(gameType)
 }
 
 func showChannel(w http.ResponseWriter, r *http.Request) {

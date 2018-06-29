@@ -30,13 +30,21 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 
 	// 檢查有沒有正在進行中的遊戲
 	session, _ := store.Get(r, "userGame")
-	oldGameID, ok := session.Values["gameID"]
+	oldGameID, ok := session.Values["gameID"].(int)
 
 	// 有就不給開新的
 	if ok {
+		rediskey := strconv.Itoa(oldGameID) + "_gameType"
+		gameType, _ := goRedis.Get(rediskey).Result()
+		if gameType == "" {
+			gameType, _, _, _ = findGameByGameID(oldGameID)
+		}
 		res.Status = wrong
 		res.Data["oldGameID"] = []interface{}{
 			oldGameID,
+		}
+		res.Data["gameType"] = []interface{}{
+			gameType,
 		}
 		json.NewEncoder(w).Encode(res)
 
@@ -65,6 +73,9 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	// jsonencode 加到redis
 	playersJSON, _ := json.Marshal(players)
 	goRedis.Set(rediskey, playersJSON, 0)
+	// 記gameType
+	rediskey = strconv.Itoa(id) + "_gameType"
+	goRedis.Set(rediskey, game, 0)
 
 	// 記到玩家session
 	session.Values["gameID"] = id
@@ -81,6 +92,9 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 // API 回傳支援的遊戲
 func supportGame(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
 	var res Response
 	res.Data = map[string][]interface{}{}
 	var gameArr []interface{}
@@ -300,6 +314,53 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// 開始遊戲
+func gameStart(w http.ResponseWriter, r *http.Request) {
+	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
+	gameID, err := checkURLGameID(r)
+	if err != nil {
+		log.Println("gameID Error: ", err)
+		return
+	}
+
+	// 不是場主就return
+	userUUID := getUserUUID(w, r)
+	if !isOwner(gameID, userUUID) {
+		return
+	}
+
+	err = changeGameState(gameID, playing)
+	if err != nil {
+		log.Println("DB change Error: ", err)
+		return
+	}
+
+	// 找gameType
+	rediskey := strconv.Itoa(gameID) + "_gameType"
+	gameType, _ := goRedis.Get(rediskey).Result()
+	if gameType == "" {
+		gameType, _, _, _ = findGameByGameID(gameID)
+	}
+
+	// 推播開始遊戲
+	pushStartGame(gameID, gameType)
+
+	var res Response
+	res.Status = success
+	res.Data = map[string][]interface{}{}
+	res.Data["gameID"] = []interface{}{
+		gameID,
+	}
+	res.Data["gameType"] = []interface{}{
+		gameType,
+	}
+
+	json.NewEncoder(w).Encode(res)
+}
+
 // API 檢查是否支援這遊戲
 func checkGameSupport(game string) bool {
 	// 判斷遊戲開關
@@ -327,4 +388,25 @@ func checkURLGameID(r *http.Request) (int, error) {
 	}
 
 	return ParamID, nil
+}
+
+func isOwner(gameID int, userUUID string) bool {
+	// 讀Redis
+	rediskey := strconv.Itoa(gameID) + "_players"
+	playersList, _ := goRedis.Get(rediskey).Result()
+	var playersData Players
+	json.Unmarshal([]byte(playersList), &playersData)
+
+	if len(playersData) <= 0 {
+		return false
+	}
+
+	// 判斷是否場主
+	// 順序第一個就是場主
+	ownerID := playersData[0].UUID
+	if ownerID == userUUID {
+		return true
+	}
+
+	return false
 }
