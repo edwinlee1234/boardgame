@@ -11,10 +11,12 @@ type Response struct {
 
 // RoomInfo 回應資訊格式
 type RoomInfo struct {
-	Status  string  `json:"status"`
-	Data    Players `json:"players"`
-	Owner   bool    `json:"owner"`
-	Opening bool    `json:"opening"`
+	Status    string  `json:"status"`
+	Data      Players `json:"players"`
+	Owner     bool    `json:"owner"`
+	RoomState string  `json:"roomState"`
+	GameID    int     `json:"gameID"`
+	GameType  string  `json:"gameType"`
 }
 
 // Players 回傳會員資訊的格式

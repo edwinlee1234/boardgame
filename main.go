@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	pb "./proto"
 	ws "./ws"
 
 	"github.com/go-redis/redis"
@@ -19,15 +20,24 @@ var (
 	store = sessions.NewCookieStore(key)
 )
 
+// gamecenter address
+const (
+	gameCenterAddress = "gamecenter:50051"
+)
+
 // MySQL
 var db *sql.DB
 
 // Redis
 var goRedis *redis.Client
 
+// GameCenter
+var gameCenter pb.GameCenterClient
+
 func init() {
 	connectDb()
 	connectRedis()
+	connectGameCenter()
 	ws.CreateGroup()
 	ws.CreateLobby()
 }

@@ -153,6 +153,7 @@ func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 	var roomInfo RoomInfo
 	session, _ := store.Get(r, "userGame")
 	gameID, ok := session.Values["gameID"].(int)
+	roomInfo.GameID = gameID
 
 	if !ok {
 		log.Println("Not found session gameID")
@@ -186,12 +187,16 @@ func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 	roomInfo.Data = playersData
 
 	// Room開放了玩家了沒～
-	_, state, _, _ := findGameByGameID(gameID)
+	gameType, state, _, _ := findGameByGameID(gameID)
 	if state == notOpen {
-		roomInfo.Opening = false
+		roomInfo.RoomState = "notOpen"
+	} else if state == opening {
+		roomInfo.RoomState = "opening"
 	} else {
-		roomInfo.Opening = true
+		roomInfo.RoomState = "playing"
 	}
+
+	roomInfo.GameType = gameType
 
 	// 判斷是否場主
 	// 順序第一個就是場主
@@ -228,7 +233,7 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "userGame")
 	oldGameID, ok := session.Values["gameID"]
 
-	// 有就不給開新的
+	// 有就不給加入新的
 	if ok {
 		res.Status = wrong
 		res.Data["oldGameID"] = []interface{}{
@@ -347,6 +352,8 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 
 	// 推播開始遊戲
 	pushStartGame(gameID, gameType)
+	// call gamecenter
+	createGameByGameCenter(gameID, gameType)
 
 	var res Response
 	res.Status = success
