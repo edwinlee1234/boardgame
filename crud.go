@@ -58,3 +58,29 @@ func changeGameState(id int, state int) error {
 
 	return nil
 }
+
+// Get user info by user name
+func getUserInfoByUserName(userName string) (name string, password string, err error) {
+	row := db.QueryRow("SELECT `name`, `password` FROM `user` WHERE `name` = ?", userName)
+	err = row.Scan(&name, &password)
+
+	return name, password, err
+}
+
+func regsiterUser(userName, password string) (int64, error) {
+	stmt, err := db.Prepare("INSERT INTO `user` (`name`,`password`) VALUES (?,?)")
+
+	if err != nil {
+		return 0, err
+	}
+
+	val, err := stmt.Exec(userName, password)
+
+	if err != nil {
+		return 0, err
+	}
+
+	id, _ := val.LastInsertId()
+
+	return id, nil
+}

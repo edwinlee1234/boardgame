@@ -7,6 +7,16 @@ var wrong = "error"
 type Response struct {
 	Status string                   `json:"status"`
 	Data   map[string][]interface{} `json:"data"`
+	Error  map[string]interface{}   `json:"error"`
+}
+
+// Init 回應資訊格式
+type Init struct {
+	Status        string `json:"status"`
+	Authorization bool   `json:"authorization"`
+	UserName      string `json:"userName"`
+	GameType      string `json:"gameType"`
+	GameID        int    `json:"gameID"`
 }
 
 // RoomInfo 回應資訊格式
