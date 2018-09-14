@@ -26,15 +26,23 @@ func connectDb() {
 }
 
 // 	新增一局遊戲
-func createGame(game string) int64 {
-	stmt, err := db.Prepare("INSERT INTO game_state SET type = ?")
-	checkErr("CRUD prepare Error", err)
+func createGame(game string, seat int) (int64, error) {
+	stmt, err := db.Prepare("INSERT INTO game_state (type, seat) VALUES (?, ?)")
+	if err != nil {
+		return 0, err
+	}
 
-	val, err := stmt.Exec(game)
-	id, _ := val.LastInsertId()
-	checkErr("CRUD Exec Error", err)
+	val, err := stmt.Exec(game, seat)
+	if err != nil {
+		return 0, err
+	}
 
-	return id
+	id, err := val.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
 }
 
 // 用GameID去game_state搜尋遊戲資料
@@ -47,7 +55,7 @@ func findGameByGameID(id int) (gameType string, state int, seat int, time string
 }
 
 // 改變state
-func changeGameState(id int, state int) error {
+func changeGameStateDB(id int, state int) error {
 	stmt, _ := db.Prepare("UPDATE `game_state` set `state` = ? where `id` = ?")
 	res, _ := stmt.Exec(state, id)
 
@@ -60,11 +68,11 @@ func changeGameState(id int, state int) error {
 }
 
 // Get user info by user name
-func getUserInfoByUserName(userName string) (name string, password string, err error) {
-	row := db.QueryRow("SELECT `name`, `password` FROM `user` WHERE `name` = ?", userName)
-	err = row.Scan(&name, &password)
+func getUserInfoByUserName(userName string) (id int, name string, password string, err error) {
+	row := db.QueryRow("SELECT `id`, `name`, `password` FROM `user` WHERE `name` = ?", userName)
+	err = row.Scan(&id, &name, &password)
 
-	return name, password, err
+	return id, name, password, err
 }
 
 func regsiterUser(userName, password string) (int64, error) {

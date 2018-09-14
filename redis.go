@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
+	"strconv"
 
 	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
@@ -24,4 +26,48 @@ func connectRedis() {
 
 	_, err = goRedis.Ping().Result()
 	checkErr("Ping Redis Error: ", err)
+}
+
+// 用gameID去Redis讀遊戲資料
+func getGameInfoByGameID(gameID int) (OpenGameData, error) {
+	rediskey := strconv.Itoa(gameID) + "_gameInfo"
+	infoJSON, err := goRedis.Get(rediskey).Result()
+	if err != nil {
+		return OpenGameData{}, err
+	}
+
+	var info OpenGameData
+	err = json.Unmarshal([]byte(infoJSON), &info)
+	if err != nil {
+		return OpenGameData{}, err
+	}
+
+	return info, err
+}
+
+// 改Redis gameinfo 值的func
+func changeGameInfoRedis(gameID int, emptySeat int, status int, playersData Players) error {
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if err != nil {
+		return err
+	}
+
+	rediskey := strconv.Itoa(gameID) + "_gameInfo" // int -> string
+
+	if status != -1 {
+		gameInfo.Status = status
+	}
+
+	if emptySeat != -1 {
+		gameInfo.EmptySeat = emptySeat
+	}
+
+	if playersData != nil {
+		gameInfo.Players = playersData
+	}
+
+	gameInfoJSON, _ := json.Marshal(gameInfo)
+	goRedis.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
+
+	return nil
 }

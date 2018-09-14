@@ -14,6 +14,9 @@ import (
 // 對應client傳進來那一個channel去接連線
 func wsInstance(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
 
 	channelParams := r.URL.Query()["channel"]
 	if len(channelParams) < 1 {
@@ -57,14 +60,14 @@ func getUserUUID(w http.ResponseWriter, r *http.Request) string {
 	session, _ := store.Get(r, "userInfo")
 	// 用string的格式取出來
 	// *這個用法很重要
-	userUUID, ok := session.Values["id"].(string)
+	userUUID, ok := session.Values["uuid"].(string)
 
 	// 如果session沒有，就new一個新的
 	if !ok {
 		UUID := uuid.Must(uuid.NewV4())
 		// UUID轉成string
 		userUUID = UUID.String()
-		session.Values["id"] = userUUID
+		session.Values["uuid"] = userUUID
 		session.Save(r, w)
 	}
 

@@ -1,3 +1,6 @@
-/github.com/*
+github.com/*
+golang.org/*
+proto/*
+google.golang.org/*
 .vscode
 .DS_Stores

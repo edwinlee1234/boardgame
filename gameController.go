@@ -6,6 +6,9 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
+
+	ErrorManner "./error"
 
 	valid "github.com/asaskevich/govalidator"
 )
@@ -14,6 +17,9 @@ import (
 // 最後回傳ID
 func gameInstance(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
 	var res Response
 	res.Data = map[string][]interface{}{}
 
@@ -28,56 +34,54 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 會員登入了沒有
+	authorization, userID, userName, gameID, err := getSessionUserInfo(r)
+	if err != nil || !authorization || userName == "" || userID == 0 {
+		ErrorManner.ErrorRespone(errors.New("Please login first"), NOT_AUTHORIZATION, w, 400)
+		return
+	}
+
 	// 檢查有沒有正在進行中的遊戲
-	session, _ := store.Get(r, "userGame")
-	oldGameID, ok := session.Values["gameID"].(int)
-
 	// 有就不給開新的
-	if ok {
-		rediskey := strconv.Itoa(oldGameID) + "_gameType"
-		gameType, _ := goRedis.Get(rediskey).Result()
-		if gameType == "" {
-			gameType, _, _, _ = findGameByGameID(oldGameID)
-		}
-		res.Status = wrong
-		res.Data["oldGameID"] = []interface{}{
-			oldGameID,
-		}
-		res.Data["gameType"] = []interface{}{
-			gameType,
-		}
-		json.NewEncoder(w).Encode(res)
-
-		log.Println("Exist old gameID: ", oldGameID)
+	if gameID != 0 {
+		ErrorManner.ErrorRespone(errors.New("Exist Playing Game"), EXIST_GAME_NOT_ALLOW_TO_CREATE_NEW_ONE, w, 200)
 		return
 	}
 
 	// DB插新的一局
-	idInt64 := createGame(game)
+	idInt64, err := createGame(game, defaultSeat)
 	id := int(idInt64) // int64 -> int
-	if id == 0 {
-		log.Println("Create game ERROR")
+	if id == 0 || err != nil {
+		ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500)
 		return
 	}
 
 	// 寫入Redis
-	// 把開這一桌的人推進去Redis
+	// 把遊戲的資訊全部都寫進去
 	userUUID := getUserUUID(w, r)
-	rediskey := strconv.Itoa(id) + "_players" // int -> string
+	rediskey := strconv.Itoa(id) + "_gameInfo" // int -> string
+	var gameInfo OpenGameData
+	// 玩家人數
 	var players Players
 	players = append(players, Player{
-		ID:   1,
+		ID:   userID,
 		UUID: userUUID,
-		Name: userUUID,
+		Name: userName,
 	})
-	// jsonencode 加到redis
-	playersJSON, _ := json.Marshal(players)
-	goRedis.Set(rediskey, playersJSON, 0)
-	// 記gameType
-	rediskey = strconv.Itoa(id) + "_gameType"
-	goRedis.Set(rediskey, game, 0)
+
+	timestamp := time.Now().Unix()
+	gameInfo.CreateTime = strconv.FormatInt(timestamp, 10) // int64 -> string
+	gameInfo.EmptySeat = defaultSeat
+	gameInfo.GameID = id
+	gameInfo.GameType = game
+	gameInfo.Players = players
+	gameInfo.Status = notOpen
+
+	gameInfoJSON, _ := json.Marshal(gameInfo)
+	goRedis.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
 
 	// 記到玩家session
+	session, err := store.Get(r, "userInfo")
 	session.Values["gameID"] = id
 	session.Save(r, w)
 
@@ -116,28 +120,28 @@ func gameOpen(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		return
 	}
-	ParamID, err := checkURLGameID(r)
 
-	if err != nil {
-		log.Println(err)
+	// 讀url的參數
+	ParamID, err := checkURLGameID(r)
+	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
 		return
 	}
 
-	session, _ := store.Get(r, "userGame")
-	gameID, ok := session.Values["gameID"].(int)
+	_, _, _, gameID, err := getSessionUserInfo(r)
+	if ErrorManner.ErrorRespone(err, USER_ACTION_ERROR, w, 400) {
+		return
+	}
 
 	// 比對session的gameID & url帶進來的gameID
-	if !ok || gameID != ParamID {
-		log.Println("GameID ERROR")
-		log.Println(gameID, ParamID)
+	if gameID != ParamID {
+		ErrorManner.ErrorRespone(errors.New("User Action Error"), USER_ACTION_ERROR, w, 400)
 		return
 	}
 
 	// 推播gameID的channel
 	err = pushOpenGame(gameID)
-
 	if err != nil {
-		log.Println("PUSH ERROR: ", err)
+		ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 400)
 		return
 	}
 
@@ -149,60 +153,44 @@ func gameOpen(w http.ResponseWriter, r *http.Request) {
 // 取得Room的資料
 func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
-	// 找在場的會員
+	if r.Method == "OPTIONS" {
+		return
+	}
 	var roomInfo RoomInfo
-	session, _ := store.Get(r, "userGame")
-	gameID, ok := session.Values["gameID"].(int)
-	roomInfo.GameID = gameID
 
-	if !ok {
-		log.Println("Not found session gameID")
+	_, userID, _, gameID, err := getSessionUserInfo(r)
+	if err != nil || gameID == 0 {
+		log.Println(err, gameID)
+		ErrorManner.ErrorRespone(errors.New("Session not found"), SESSION_NOT_FOUND, w, 400)
 		return
 	}
 
-	gameParams := r.URL.Query()["game"]
-	if len(gameParams) < 1 {
-		log.Println("Url Param 'game' is missing")
-		return
-	}
-	game := gameParams[0]
-	if !checkGameSupport(game) {
-		log.Println(game, " is not support")
+	// 取得遊戲資料
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if err != nil {
+		ErrorManner.ErrorRespone(errors.New("No this game"), GAME_NOT_FOUND, w, 400)
 		return
 	}
 
-	// 讀Redis
-	rediskey := strconv.Itoa(gameID) + "_players"
-	playersList, _ := goRedis.Get(rediskey).Result()
-	var playersData Players
-	json.Unmarshal([]byte(playersList), &playersData)
+	// 回傳同一局的玩家資料
+	roomInfo.Data = gameInfo.Players
 
-	// Redis沒有人，這樣不對
-	if len(playersData) <= 0 {
-		log.Println("pushOpen ERROR Redis no one player")
-		return
-	}
-
-	// 回傳會員資料
-	roomInfo.Data = playersData
-
-	// Room開放了玩家了沒～
-	gameType, state, _, _ := findGameByGameID(gameID)
-	if state == notOpen {
+	// Room開放了玩家了沒
+	if gameInfo.Status == notOpen {
 		roomInfo.RoomState = "notOpen"
-	} else if state == opening {
+	} else if gameInfo.Status == opening {
 		roomInfo.RoomState = "opening"
 	} else {
 		roomInfo.RoomState = "playing"
 	}
 
-	roomInfo.GameType = gameType
+	roomInfo.GameType = gameInfo.GameType
+	roomInfo.GameID = gameInfo.GameID
 
 	// 判斷是否場主
 	// 順序第一個就是場主
-	ownerID := playersData[0].UUID
-	userUUID := getUserUUID(w, r)
-	if ownerID == userUUID {
+	ownerID := gameInfo.Players[0].ID
+	if ownerID == userID {
 		roomInfo.Owner = true
 	} else {
 		roomInfo.Owner = false
@@ -222,92 +210,75 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	var res Response
 	res.Data = map[string][]interface{}{}
 
-	// 檢查ID存不存在
-	gameID, err := checkURLGameID(r)
-	if err != nil {
-		log.Println(err)
+	// 讀url的參數
+	paramGameID, err := checkURLGameID(r)
+	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
 		return
 	}
 
 	// 檢查有沒有正在進行中的遊戲
-	session, _ := store.Get(r, "userGame")
-	oldGameID, ok := session.Values["gameID"]
-
+	_, userID, userName, oldGameID, _ := getSessionUserInfo(r)
 	// 有就不給加入新的
-	if ok {
-		res.Status = wrong
-		res.Data["oldGameID"] = []interface{}{
-			oldGameID,
-		}
-		json.NewEncoder(w).Encode(res)
-
-		log.Println("Exist old gameID: ", oldGameID)
+	if oldGameID != 0 {
+		ErrorManner.ErrorRespone(errors.New("Exist Game Not Allow to join new one"), EXIST_GAME_NOT_ALLOW_TO_CREATE_NEW_ONE, w, 200)
 		return
 	}
 
 	// 寫入Redis
+	gameInfo, err := getGameInfoByGameID(paramGameID)
+	// 這邊讀不到可能會是user亂帶gameID or redis資料不見了
+	if err != nil {
+		ErrorManner.ErrorRespone(errors.New("GameID ERROR"), USER_ACTION_ERROR, w, 400)
+		return
+	}
+
 	// 把開這一桌的人推進去Redis
 	userUUID := getUserUUID(w, r)
-	rediskey := strconv.Itoa(gameID) + "_players" // int -> string
-	// 已在的玩家
-	playersList, _ := goRedis.Get(rediskey).Result()
-	var playersData Players
-	json.Unmarshal([]byte(playersList), &playersData)
+	playersData := gameInfo.Players
+	newEmptySeat := gameInfo.EmptySeat - 1
 
 	// 判斷人數滿了沒
-	gameType, state, seat, _ := findGameByGameID(gameID)
-	if seat <= len(playersData) {
-		res.Status = wrong
-		res.Data["msg"] = []interface{}{
-			"滿人了",
-		}
-		json.NewEncoder(w).Encode(res)
-
-		log.Println("滿人了: ", gameID)
+	if newEmptySeat < 0 {
+		ErrorManner.ErrorRespone(errors.New("Room has be full"), USER_ACTION_ERROR, w, 400)
 		return
 	}
 
 	// 判斷是否開放玩家
-	if state != opening {
-		res.Status = wrong
-		res.Data["msg"] = []interface{}{
-			"開局了",
-		}
-		json.NewEncoder(w).Encode(res)
-
-		log.Println("開局了: ", gameID)
+	if gameInfo.Status != opening {
+		ErrorManner.ErrorRespone(errors.New("Game playing"), USER_ACTION_ERROR, w, 400)
 		return
 	}
 
 	// 插入新的玩家
 	playersData = append(playersData, Player{
-		ID:   1,
+		ID:   userID,
 		UUID: userUUID,
-		Name: userUUID,
+		Name: userName,
 	})
 
-	// jsonencode 加到redis
-	playersJSON, _ := json.Marshal(playersData)
-	goRedis.Set(rediskey, playersJSON, 0)
+	if err := changeGameInfoRedis(paramGameID, newEmptySeat, -1, playersData); err != nil {
+		ErrorManner.ErrorRespone(err, USER_ACTION_ERROR, w, 400)
+		return
+	}
 
 	// 記到玩家session
-	session.Values["gameID"] = gameID
+	session, _ := store.Get(r, "userInfo")
+	session.Values["gameID"] = paramGameID
 	session.Save(r, w)
 
 	// 推播
-	err = pushChangePlayer(gameID, playersData)
-
+	err = pushChangePlayer(paramGameID, playersData)
+	// 不停掉request
 	if err != nil {
-		log.Println("推播失敗: ", err)
-		return
+		ErrorManner.LogsMessage(err, "推播失敗 Join Game")
 	}
 
 	res.Status = success
 	res.Data["gameID"] = []interface{}{
-		gameID,
+		paramGameID,
 	}
 	res.Data["gameType"] = []interface{}{
-		gameType,
+		gameInfo.GameType,
 	}
 	json.NewEncoder(w).Encode(res)
 
@@ -325,35 +296,38 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		return
 	}
+
 	gameID, err := checkURLGameID(r)
-	if err != nil {
-		log.Println("gameID Error: ", err)
+	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
 		return
 	}
 
 	// 不是場主就return
-	userUUID := getUserUUID(w, r)
-	if !isOwner(gameID, userUUID) {
+	_, userID, _, _, _ := getSessionUserInfo(r)
+	if owner, err := isOwner(gameID, userID); !owner || err != nil {
 		return
 	}
 
-	err = changeGameState(gameID, playing)
-	if err != nil {
-		log.Println("DB change Error: ", err)
+	// 把遊戲狀態改為開始遊戲
+	err = changeGameStateDB(gameID, playing)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500) {
+		return
+	}
+	err = changeGameInfoRedis(gameID, -1, playing, nil)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
 		return
 	}
 
 	// 找gameType
-	rediskey := strconv.Itoa(gameID) + "_gameType"
-	gameType, _ := goRedis.Get(rediskey).Result()
-	if gameType == "" {
-		gameType, _, _, _ = findGameByGameID(gameID)
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
+		return
 	}
 
 	// 推播開始遊戲
-	pushStartGame(gameID, gameType)
+	pushStartGame(gameID, gameInfo.GameType)
 	// call gamecenter
-	createGameByGameCenter(gameID, gameType)
+	// createGameByGameCenter(gameID, gameInfo.GameType)
 
 	var res Response
 	res.Status = success
@@ -362,10 +336,15 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 		gameID,
 	}
 	res.Data["gameType"] = []interface{}{
-		gameType,
+		gameInfo.GameType,
 	}
 
 	json.NewEncoder(w).Encode(res)
+}
+
+// 取得RoomList
+func getRoomList(w http.ResponseWriter, r *http.Request) {
+
 }
 
 // API 檢查是否支援這遊戲
@@ -397,23 +376,19 @@ func checkURLGameID(r *http.Request) (int, error) {
 	return ParamID, nil
 }
 
-func isOwner(gameID int, userUUID string) bool {
-	// 讀Redis
-	rediskey := strconv.Itoa(gameID) + "_players"
-	playersList, _ := goRedis.Get(rediskey).Result()
-	var playersData Players
-	json.Unmarshal([]byte(playersList), &playersData)
+func isOwner(gameID int, userID int) (bool, error) {
+	gameInfo, err := getGameInfoByGameID(gameID)
 
-	if len(playersData) <= 0 {
-		return false
+	if err != nil {
+		return false, err
 	}
 
 	// 判斷是否場主
 	// 順序第一個就是場主
-	ownerID := playersData[0].UUID
-	if ownerID == userUUID {
-		return true
+	ownerID := gameInfo.Players[0].ID
+	if userID == ownerID {
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }

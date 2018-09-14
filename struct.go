@@ -52,6 +52,7 @@ type OpenGameData struct {
 	GameType   string  `json:"gameType"`
 	EmptySeat  int     `json:"emptySeat"`
 	CreateTime string  `json:"time"`
+	Status     int     `json:"status"`
 }
 
 // ChangePlayer 推播遊戲玩家變動的格式

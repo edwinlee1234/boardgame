@@ -52,7 +52,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 驗證帳密
-	_, userHashPassword, err := getUserInfoByUserName(userName)
+	ID, _, userHashPassword, err := getUserInfoByUserName(userName)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500) {
 		return
 	}
@@ -65,6 +65,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "userInfo")
 	session.Values["login"] = true
 	session.Values["userName"] = userName
+	session.Values["userID"] = ID
 	session.Save(r, w)
 
 	var res Response
@@ -103,8 +104,8 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 檢查使用者存在
-	exist, _, _ := getUserInfoByUserName(userName)
-	if exist != "" {
+	_, existUserName, _, _ := getUserInfoByUserName(userName)
+	if existUserName != "" {
 		ErrorManner.ErrorRespone(errors.New("UserName is Exist"), EXIST_USER, w, 400)
 		return
 	}
@@ -137,4 +138,20 @@ func checkPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 
 	return err == nil
+}
+
+// 取得session的會員資料
+func getSessionUserInfo(r *http.Request) (authorization bool, userID int, userName string, gameID int, err error) {
+	session, err := store.Get(r, "userInfo")
+
+	if err != nil {
+		return false, 0, "", 0, err
+	}
+
+	authorization, _ = session.Values["login"].(bool)
+	userName, _ = session.Values["userName"].(string)
+	userID, _ = session.Values["userID"].(int)
+	gameID, _ = session.Values["gameID"].(int)
+
+	return authorization, userID, userName, gameID, nil
 }

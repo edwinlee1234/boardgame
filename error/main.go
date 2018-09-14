@@ -27,3 +27,9 @@ func ErrorRespone(err error, errorCode string, w http.ResponseWriter, statusCode
 
 	return false
 }
+
+// LogsMessage
+func LogsMessage(err error, message string) {
+	log.Println(err.Error())
+	log.Println(message)
+}

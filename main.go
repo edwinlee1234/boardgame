@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 
 	pb "./proto"
 	ws "./ws"
@@ -47,15 +46,16 @@ func init() {
 func main() {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/", index).Methods("GET")
-	r.HandleFunc("/test", test).Methods("GET")
-	r.HandleFunc("/ws", wsInstance).Methods("GET")
-	r.HandleFunc("/showChannel", showChannel).Methods("GET")
-	r.HandleFunc("/init", initInfo).Methods("get", "GET")
+	r.HandleFunc("/", index).Methods("GET", "OPTIONS")
+	r.HandleFunc("/test", test).Methods("GET", "OPTIONS")
+	r.HandleFunc("/ws", wsInstance).Methods("GET", "OPTIONS")
+	r.HandleFunc("/showChannel", showChannel).Methods("GET", "OPTIONS")
+	r.HandleFunc("/init", initInfo).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/user/login", loginUser).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/user/register", registerUser).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/creategame", gameInstance).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/roomlist", getRoomList).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/game/openplayer", gameOpen).Methods("PUT", "OPTIONS")
 	r.HandleFunc("/api/game/roomInfo", gameRoomInfo).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/game/joingame", gameRoomJoin).Methods("PUT", "OPTIONS")
@@ -78,64 +78,45 @@ func allowOrigin(w http.ResponseWriter, r *http.Request) {
 // 前端進來的init
 func initInfo(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
 	var res Init
 	res.Status = success
 
-	// 登入的判斷
-	session, _ := store.Get(r, "userInfo")
-	authorization, ok := session.Values["login"].(bool)
-	if ok {
-		res.Authorization = authorization
-	} else {
+	// 登入的判斷 start
+	authorization, _, userName, gameID, err := getSessionUserInfo(r)
+	if err != nil && !authorization {
 		res.Authorization = false
-	}
-
-	userName, ok := session.Values["userName"].(string)
-	if ok && userName != "" {
-		res.UserName = userName
-	} else {
-		res.UserName = "Guest"
-	}
-
-	if !res.Authorization {
 		json.NewEncoder(w).Encode(res)
+
+		return
 	}
+	res.Authorization = authorization
+	res.UserName = userName
 
 	// 檢查有沒有已加入的遊戲
-	session, _ = store.Get(r, "userGame")
-	gameID, ok := session.Values["gameID"].(int)
-
-	if gameID != 0 && ok {
-		rediskey := strconv.Itoa(gameID) + "_gameType"
-		gameType, err := goRedis.Get(rediskey).Result()
-
-		if err == nil && gameType != "" {
-			res.GameType = gameType
-			res.GameID = gameID
-		}
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if err != nil {
+		json.NewEncoder(w).Encode(res)
+		return
 	}
+
+	res.GameType = gameInfo.GameType
+	res.GameID = gameInfo.GameID
 
 	json.NewEncoder(w).Encode(res)
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	getUserUUID(w, r)
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
-	rediskey := "afasf_gameType"
-	gameType, err := goRedis.Get(rediskey).Result()
-	if gameType == "" {
-		fmt.Println("!!")
-	}
-	fmt.Println(err)
-	fmt.Println(gameType)
-
-	session, _ := store.Get(r, "balbal")
-	data, ok := session.Values["gameID"].(int)
-
-	fmt.Println(data, ok)
+	authorization, userID, userName, gameID, err := getSessionUserInfo(r)
+	gameInfo, err := getGameInfoByGameID(gameID)
+	fmt.Println(authorization, userID, userName, gameID, err)
+	fmt.Println(gameInfo, err)
 }
 
 func showChannel(w http.ResponseWriter, r *http.Request) {

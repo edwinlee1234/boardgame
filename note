@@ -1,9 +1,17 @@
+使用技術：
+前端 vue SPA
+後端 Golang 微服務 GameCenter & GameServer (gRCP)
+Redis
+MySQL
+    -> 之後可以實作Master Slave in docker
+
 // TODO
 webSocket的Package->server.go
 137行，我把它註解掉
 之後再解決，開個白名單
 
 
-// 一個遊戲開一個go func
-讓game的物件掛在那邊
-實作看看
+這邊太依懶redis
+我只有做一層redis
+如果redis值不見了，那就直接噴掉
+這個後面改成redis沒東西，就改去讀DB的
