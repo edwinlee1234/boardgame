@@ -54,7 +54,7 @@ func main() {
 	r.HandleFunc("/api/user/login", loginUser).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/user/register", registerUser).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/gamesupport", supportGame).Methods("GET", "OPTIONS")
-	r.HandleFunc("/api/creategame", gameInstance).Methods("GET", "OPTIONS")
+	r.HandleFunc("/api/creategame", gameInstance).Methods("PUT", "OPTIONS")
 	r.HandleFunc("/api/roomlist", getRoomList).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/game/openplayer", gameOpen).Methods("PUT", "OPTIONS")
 	r.HandleFunc("/api/game/roomInfo", gameRoomInfo).Methods("GET", "OPTIONS")
@@ -98,6 +98,11 @@ func initInfo(w http.ResponseWriter, r *http.Request) {
 	// 檢查有沒有已加入的遊戲
 	gameInfo, err := getGameInfoByGameID(gameID)
 	if err != nil {
+		// TODO 這個是防止，redis已經死了，但user的gameID session還在，一律都變0好了，這邊可以會造成太多次的修改
+		session, _ := store.Get(r, "userInfo")
+		session.Values["gameID"] = 0
+		session.Save(r, w)
+
 		json.NewEncoder(w).Encode(res)
 		return
 	}

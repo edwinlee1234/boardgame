@@ -6,6 +6,7 @@ import "time"
 const notOpen = 0 // owner only
 const opening = 1 // 開放玩家
 const playing = 2 // 遊戲中
+const close = 4   // 關
 
 // 預設空位
 const defaultSeat = 2

@@ -49,7 +49,8 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DB插新的一局
-	idInt64, err := createGame(game, defaultSeat)
+	timestamp := int(time.Now().Unix())
+	idInt64, err := createGame(game, defaultSeat, timestamp)
 	id := int(idInt64) // int64 -> int
 	if id == 0 || err != nil {
 		ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500)
@@ -69,9 +70,9 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 		Name: userName,
 	})
 
-	timestamp := time.Now().Unix()
-	gameInfo.CreateTime = strconv.FormatInt(timestamp, 10) // int64 -> string
-	gameInfo.EmptySeat = defaultSeat
+	gameInfo.CreateTime = timestamp
+	// 減掉場主自已
+	gameInfo.EmptySeat = defaultSeat - 1
 	gameInfo.GameID = id
 	gameInfo.GameType = game
 	gameInfo.Players = players
@@ -266,11 +267,16 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	session.Values["gameID"] = paramGameID
 	session.Save(r, w)
 
-	// 推播
+	// 推播Room
 	err = pushChangePlayer(paramGameID, playersData)
 	// 不停掉request
 	if err != nil {
-		ErrorManner.LogsMessage(err, "推播失敗 Join Game")
+		ErrorManner.LogsMessage(err, "推播失敗 pushChangePlayer")
+	}
+	// 推播Lobby
+	err = pushRoomChange(paramGameID)
+	if err != nil {
+		ErrorManner.LogsMessage(err, "推播失敗 pushRoomChange")
 	}
 
 	res.Status = success
@@ -287,7 +293,93 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 
 // 刪掉Room
 func gameRoomClose(w http.ResponseWriter, r *http.Request) {
+	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
 
+	gameID, err := checkURLGameID(r)
+	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
+		return
+	}
+
+	// 判斷user是否在這場遊戲中
+	_, userID, _, userJoinedGameID, _ := getSessionUserInfo(r)
+	if gameID != userJoinedGameID {
+		ErrorManner.ErrorRespone(errors.New("User Action error"), USER_ACTION_ERROR, w, 400)
+		return
+	}
+
+	// 讀遊戲資料
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
+		return
+	}
+
+	// 判斷是不是場主，如果是全部人都要被踢出去
+	owner, err := isOwner(gameID, userID)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
+		return
+	}
+
+	// 不是場主，把自已的session清掉就行
+	if !owner {
+		// 把這個會員從redis的玩家中刪掉
+		var newPlayers Players
+		var delUserKey int
+		for index, player := range gameInfo.Players {
+			if player.ID == userID {
+				delUserKey = index
+			}
+		}
+		newPlayers = append(gameInfo.Players[:(delUserKey)], gameInfo.Players[(delUserKey+1):]...)
+		newSeat := gameInfo.EmptySeat + 1
+
+		err := changeGameInfoRedis(gameID, newSeat, -1, newPlayers)
+		if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
+			return
+		}
+
+		// lobby change room info的推播
+		err = pushRoomChange(gameID)
+		// 不停掉request
+		if err != nil {
+			ErrorManner.LogsMessage(err, "推播失敗 pushRoomChange")
+		}
+
+		// 場內人數變動的推播
+		err = pushChangePlayer(gameID, newPlayers)
+		// 不停掉request
+		if err != nil {
+			ErrorManner.LogsMessage(err, "推播失敗 pushChangePlayer")
+		}
+	} else {
+		// 場主
+		// 改db欄位
+		err := changeGameStateDB(gameID, close)
+		if ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500) {
+			return
+		}
+
+		// redis delete
+		rediskey := strconv.Itoa(gameID) + "_gameInfo"
+		goRedis.Del(rediskey)
+
+		// 踢人的推播，玩家全踢
+		err = pushKickPlayers(gameID, gameInfo.Players)
+		if ErrorManner.ErrorRespone(err, UNEXPECT_BROADCAST_ERROR, w, 500) {
+			return
+		}
+	}
+
+	// session去掉
+	session, _ := store.Get(r, "userInfo")
+	session.Values["gameID"] = 0
+	session.Save(r, w)
+
+	var res Response
+	res.Status = success
+	json.NewEncoder(w).Encode(res)
 }
 
 // 開始遊戲
@@ -344,7 +436,33 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 
 // 取得RoomList
 func getRoomList(w http.ResponseWriter, r *http.Request) {
+	allowOrigin(w, r)
+	if r.Method == "OPTIONS" {
+		return
+	}
 
+	// 去db讀還開放玩家加入的遊戲
+	gameData, err := findOpeningGame()
+	if err != nil {
+		ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500)
+	}
+
+	// 去讀redis
+	// TODO 改成pineline，一次全拿
+	var res RoomListResponse
+	var roomInfo []OpenGameData
+	for _, val := range gameData {
+		info, err := getGameInfoByGameID(val.ID)
+
+		if err == nil {
+			roomInfo = append(roomInfo, info)
+		}
+	}
+
+	res.Status = success
+	res.RoomInfo = roomInfo
+
+	json.NewEncoder(w).Encode(res)
 }
 
 // API 檢查是否支援這遊戲

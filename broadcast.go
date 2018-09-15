@@ -11,6 +11,10 @@ func pushOpenGame(gameID int) error {
 	var openGame OpenGame
 	// 用gameID去撈DB
 	gameInfo, err := getGameInfoByGameID(gameID)
+	if err != nil {
+		return err
+	}
+
 	gameType, state, seat, time := findGameByGameID(gameID)
 
 	// Redis沒有人，這樣不對
@@ -81,6 +85,47 @@ func pushStartGame(gameID int, gameType string) error {
 	startGame.Data = startGameData
 
 	broadcastData, err := json.Marshal(startGame)
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastChannel(gameID, broadcastData)
+
+	return nil
+}
+
+// Room變動的推播
+func pushRoomChange(gameID int) error {
+	// 用gameID去撈DB
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if err != nil {
+		return err
+	}
+
+	var openGame OpenGame
+	openGame.Event = "RoomChange"
+	openGame.Data = gameInfo
+
+	// 轉成json推播
+	broadcastData, err := json.Marshal(openGame)
+	if err != nil {
+		return err
+	}
+
+	// 推播到lobby的頻道
+	ws.BroadcastChannel(ws.LobbyID, broadcastData)
+
+	return nil
+}
+
+// 踢掉玩家
+func pushKickPlayers(gameID int, players Players) error {
+	var kick KickPlayers
+
+	kick.Event = "Kick"
+	kick.Data = players
+
+	broadcastData, err := json.Marshal(kick)
 	if err != nil {
 		return err
 	}

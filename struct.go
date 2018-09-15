@@ -10,6 +10,12 @@ type Response struct {
 	Error  map[string]interface{}   `json:"error"`
 }
 
+// RoomListResponse roomlist API的回傳格式
+type RoomListResponse struct {
+	Status   string         `json:"status"`
+	RoomInfo []OpenGameData `json:"roomlist"`
+}
+
 // Init 回應資訊格式
 type Init struct {
 	Status        string `json:"status"`
@@ -51,7 +57,7 @@ type OpenGameData struct {
 	Players    Players `json:"players"`
 	GameType   string  `json:"gameType"`
 	EmptySeat  int     `json:"emptySeat"`
-	CreateTime string  `json:"time"`
+	CreateTime int     `json:"time"`
 	Status     int     `json:"status"`
 }
 
@@ -71,4 +77,10 @@ type StartGame struct {
 type StartGameData struct {
 	GameID   int    `json:"gameID"`
 	GameType string `json:"gameType"`
+}
+
+// KickPlayers 踢掉玩家的推播
+type KickPlayers struct {
+	Event string  `json:"event"`
+	Data  Players `json:"data"`
 }
