@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 
 	pb "./proto"
@@ -26,7 +25,7 @@ func connectGameCenter() {
 		log.Fatalf("could not cennect gamecenter: %v", err)
 	}
 
-	fmt.Println(r.State)
+	log.Println(r.State)
 }
 
 //	call gamecenter to create game
@@ -40,5 +39,5 @@ func createGameByGameCenter(gameID int, gameType string) {
 		log.Fatalf("create game error by gamecenter: %v", err)
 	}
 
-	fmt.Println(r.State)
+	log.Println(r.State)
 }

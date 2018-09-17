@@ -2,7 +2,6 @@ package ws
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -79,7 +78,7 @@ func (c *Client) writePump() {
 	// 不太懂這個ticker在幹麻(先保留)
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		fmt.Println("Close WS:", c.id)
+		log.Println("Close WS:", c.id)
 		ticker.Stop()
 		c.conn.Close()
 	}()
@@ -130,8 +129,8 @@ func serveWs(id string, hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Println("new Client")
-	fmt.Println(hub)
+	log.Println("new Client")
+	log.Println(hub)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)

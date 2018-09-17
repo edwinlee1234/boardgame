@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -120,8 +119,8 @@ func test(w http.ResponseWriter, r *http.Request) {
 	allowOrigin(w, r)
 	authorization, userID, userName, gameID, err := getSessionUserInfo(r)
 	gameInfo, err := getGameInfoByGameID(gameID)
-	fmt.Println(authorization, userID, userName, gameID, err)
-	fmt.Println(gameInfo, err)
+	log.Println(authorization, userID, userName, gameID, err)
+	log.Println(gameInfo, err)
 }
 
 func showChannel(w http.ResponseWriter, r *http.Request) {

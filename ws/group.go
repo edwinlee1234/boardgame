@@ -45,7 +45,6 @@ func (g *Group) findHub(ID int) {
 // 刪掉hub
 func (g *Group) deleteHub(ID int) {
 	for hub, _ := range g.hubs {
-		// fmt.Println(open)
 		if hub.id == ID {
 			hub.destory <- true
 			delete(g.hubs, hub)

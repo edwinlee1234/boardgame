@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -23,7 +24,9 @@ type dbGameStateData struct {
 
 func connectDb() {
 	err := godotenv.Load()
-	checkErr("Error loading .env file", err)
+	if err != nil {
+		log.Panic(err)
+	}
 
 	dbUser := os.Getenv("DB_USER")
 	dbPassword := os.Getenv("DB_PASSWORD")
@@ -34,7 +37,9 @@ func connectDb() {
 	db, err = sql.Open(
 		"mysql", dbUser+":"+dbPassword+"@tcp("+dbHost+":"+dbPort+")/"+dbName+"?charset=utf8mb4")
 
-	checkErr("MySQL Connect", err)
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 // 	新增一局遊戲
@@ -60,8 +65,7 @@ func createGame(game string, seat int, insertTime int) (int64, error) {
 // 用GameID去game_state搜尋遊戲資料
 func findGameByGameID(id int) (gameType string, state int, seat int, time int) {
 	row := db.QueryRow("SELECT `type`, `state`, `seat`, `insert_time` game_state FROM `game_state` WHERE `id` = ? LIMIT 1", id)
-	err := row.Scan(&gameType, &state, &seat, &time)
-	checkErr("find gameType Error:", err)
+	row.Scan(&gameType, &state, &seat, &time)
 
 	return gameType, state, seat, time
 }

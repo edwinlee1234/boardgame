@@ -1,9 +1,5 @@
 package main
 
-import (
-	"log"
-)
-
 // LOGIN_WORNG 登入失敗
 const LOGIN_WORNG = "00001"
 
@@ -42,13 +38,3 @@ const UNEXPECT_REDIS_ERROR = "00012"
 
 // UNEXPECT_BROADCAST_ERROR 推播錯誤
 const UNEXPECT_BROADCAST_ERROR = "00013"
-
-func checkErr(msg string, err error) bool {
-	if err != nil {
-		log.Fatal(msg, err)
-
-		return true
-	}
-
-	return false
-}

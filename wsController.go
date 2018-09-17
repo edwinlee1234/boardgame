@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -30,9 +29,9 @@ func wsInstance(w http.ResponseWriter, r *http.Request) {
 		log.Println(channel, " is not support")
 		return
 	}
-	fmt.Println("channelParams", channelParams)
+	log.Println("channelParams", channelParams)
 	userUUID := getUserUUID(w, r)
-	fmt.Println("UUID", userUUID)
+	log.Println("UUID", userUUID)
 
 	var channelID int
 	channelIDArrs := r.URL.Query()["id"]
@@ -41,8 +40,8 @@ func wsInstance(w http.ResponseWriter, r *http.Request) {
 		channelIDArr := channelIDArrs[0]
 		channelID, err = strconv.Atoi(channelIDArr)
 
-		if checkErr("id Error", err) {
-			fmt.Println("create channel error")
+		if err != nil {
+			log.Println("create channel error")
 			return
 		}
 	}

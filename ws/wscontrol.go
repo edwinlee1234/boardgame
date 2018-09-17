@@ -3,7 +3,6 @@ package ws
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -11,12 +10,12 @@ import (
 // CheckAllChannel 把現在的hub & client都println出來
 func CheckAllChannel() {
 	for hub, boolan := range group.hubs {
-		fmt.Println("hub:")
-		fmt.Println(hub.id)
-		fmt.Println(boolan)
+		log.Println("hub:")
+		log.Println(hub.id)
+		log.Println(boolan)
 		for address, boolan := range hub.clients {
-			fmt.Println(address)
-			fmt.Println(boolan)
+			log.Println(address)
+			log.Println(boolan)
 		}
 	}
 }
@@ -37,7 +36,7 @@ func ConnWs(channelID int, UUID string, w http.ResponseWriter, r *http.Request) 
 	group.findHubChan <- channelID
 	hub = <-groupFindHubChan
 
-	fmt.Println("hub", hub)
+	log.Println("hub", hub)
 	// 如果Group沒有這個hub，新增一個
 	if hub == nil {
 		flag.Parse()
