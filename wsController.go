@@ -12,11 +12,6 @@ import (
 
 // 對應client傳進來那一個channel去接連線
 func wsInstance(w http.ResponseWriter, r *http.Request) {
-
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	channelParams := r.URL.Query()["channel"]
 	if len(channelParams) < 1 {
 		log.Println("Url Param 'channel' is missing")
