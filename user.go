@@ -23,11 +23,6 @@ type loginRequest struct {
 }
 
 func loginUser(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	body, err := ioutil.ReadAll(r.Body)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500) {
 		return
@@ -75,11 +70,6 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func registerUser(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	body, err := ioutil.ReadAll(r.Body)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500) {
 		return

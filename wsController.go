@@ -12,7 +12,7 @@ import (
 
 // 對應client傳進來那一個channel去接連線
 func wsInstance(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
+
 	if r.Method == "OPTIONS" {
 		return
 	}

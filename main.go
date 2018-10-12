@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	middleware "./middleware"
 	pb "./proto"
 	ws "./ws"
 
@@ -44,11 +45,18 @@ func init() {
 
 func main() {
 	r := mux.NewRouter()
+	r.Use(middleware.Before)
 
+	// Test
 	r.HandleFunc("/", index).Methods("GET", "OPTIONS")
 	r.HandleFunc("/test", test).Methods("GET", "OPTIONS")
-	r.HandleFunc("/ws", wsInstance).Methods("GET", "OPTIONS")
 	r.HandleFunc("/showChannel", showChannel).Methods("GET", "OPTIONS")
+
+	// WS
+	r.HandleFunc("/ws", wsInstance).Methods("GET", "OPTIONS")
+
+	// API v1
+	// api := r.PathPrefix("/api").Subrouter()
 	r.HandleFunc("/init", initInfo).Methods("GET", "OPTIONS")
 	r.HandleFunc("/api/user/login", loginUser).Methods("POST", "OPTIONS")
 	r.HandleFunc("/api/user/register", registerUser).Methods("POST", "OPTIONS")
@@ -67,19 +75,8 @@ func main() {
 	}
 }
 
-func allowOrigin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "http://localhost:8787")
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
-	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	w.Header().Add("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Access-Control-Request-Headers, Access-Control-Request-Method, Connection, Host, Origin, User-Agent, Referer, Cache-Control, X-header, x-xsrf-token")
-}
-
 // 前端進來的init
 func initInfo(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
 	var res Init
 	res.Status = success
 
@@ -116,7 +113,6 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
 	authorization, userID, userName, gameID, err := getSessionUserInfo(r)
 	gameInfo, err := getGameInfoByGameID(gameID)
 	log.Println(authorization, userID, userName, gameID, err)

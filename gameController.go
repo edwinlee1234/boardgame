@@ -16,10 +16,6 @@ import (
 // 開新遊戲
 // 最後回傳ID
 func gameInstance(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
 	var res Response
 	res.Data = map[string][]interface{}{}
 
@@ -96,10 +92,6 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 
 // API 回傳支援的遊戲
 func supportGame(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
 	var res Response
 	res.Data = map[string][]interface{}{}
 	var gameArr []interface{}
@@ -117,11 +109,6 @@ func supportGame(w http.ResponseWriter, r *http.Request) {
 
 // 開放玩家進來
 func gameOpen(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	// 讀url的參數
 	ParamID, err := checkURLGameID(r)
 	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
@@ -153,10 +140,6 @@ func gameOpen(w http.ResponseWriter, r *http.Request) {
 
 // 取得Room的資料
 func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
 	var roomInfo RoomInfo
 
 	_, userID, _, gameID, err := getSessionUserInfo(r)
@@ -204,10 +187,6 @@ func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 
 // 加入Room
 func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
 	var res Response
 	res.Data = map[string][]interface{}{}
 
@@ -218,7 +197,12 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 檢查有沒有正在進行中的遊戲
-	_, userID, userName, oldGameID, _ := getSessionUserInfo(r)
+	authorization, userID, userName, oldGameID, _ := getSessionUserInfo(r)
+	// 登入了沒
+	if !authorization {
+		ErrorManner.ErrorRespone(errors.New("Please login first"), NOT_AUTHORIZATION, w, 400)
+		return
+	}
 	// 有就不給加入新的
 	if oldGameID != 0 {
 		ErrorManner.ErrorRespone(errors.New("Exist Game Not Allow to join new one"), EXIST_GAME_NOT_ALLOW_TO_CREATE_NEW_ONE, w, 200)
@@ -293,11 +277,6 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 
 // 刪掉Room
 func gameRoomClose(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	gameID, err := checkURLGameID(r)
 	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
 		return
@@ -384,11 +363,6 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 
 // 開始遊戲
 func gameStart(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	gameID, err := checkURLGameID(r)
 	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
 		return
@@ -419,7 +393,7 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 	// 推播開始遊戲
 	pushStartGame(gameID, gameInfo.GameType)
 	// call gamecenter
-	// createGameByGameCenter(gameID, gameInfo.GameType)
+	createGameByGameCenter(gameID, gameInfo.GameType)
 
 	var res Response
 	res.Status = success
@@ -436,11 +410,6 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 
 // 取得RoomList
 func getRoomList(w http.ResponseWriter, r *http.Request) {
-	allowOrigin(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	// 去db讀還開放玩家加入的遊戲
 	gameData, err := findOpeningGame()
 	if err != nil {
