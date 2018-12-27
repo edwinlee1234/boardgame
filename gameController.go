@@ -9,6 +9,7 @@ import (
 	"time"
 
 	ErrorManner "./error"
+	model "./model"
 
 	valid "github.com/asaskevich/govalidator"
 )
@@ -16,8 +17,7 @@ import (
 // 開新遊戲
 // 最後回傳ID
 func gameInstance(w http.ResponseWriter, r *http.Request) {
-	var res Response
-	res.Data = map[string][]interface{}{}
+	res := newResponse()
 
 	gameParams := r.URL.Query()["game"]
 	if len(gameParams) < 1 {
@@ -45,9 +45,9 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DB插新的一局
-	timestamp := int(time.Now().Unix())
-	idInt64, err := createGame(game, defaultSeat, timestamp)
-	id := int(idInt64) // int64 -> int
+	timestamp := int32(time.Now().Unix())
+	idInt64, err := model.CreateGame(game, defaultSeat, timestamp)
+	id := int32(idInt64) // int64 -> int32
 	if id == 0 || err != nil {
 		ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500)
 		return
@@ -56,7 +56,7 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	// 寫入Redis
 	// 把遊戲的資訊全部都寫進去
 	userUUID := getUserUUID(w, r)
-	rediskey := strconv.Itoa(id) + "_gameInfo" // int -> string
+	rediskey := strconv.Itoa(int(id)) + "_gameInfo" // int32 -> string
 	var gameInfo OpenGameData
 	// 玩家人數
 	var players Players
@@ -83,17 +83,14 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	session.Save(r, w)
 
 	res.Status = success
-	res.Data["gameID"] = []interface{}{
-		id,
-	}
+	res.Data["gameID"] = id
 
 	json.NewEncoder(w).Encode(res)
 }
 
 // API 回傳支援的遊戲
 func supportGame(w http.ResponseWriter, r *http.Request) {
-	var res Response
-	res.Data = map[string][]interface{}{}
+	res := newResponse()
 	var gameArr []interface{}
 
 	res.Status = success
@@ -187,8 +184,7 @@ func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 
 // 加入Room
 func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
-	var res Response
-	res.Data = map[string][]interface{}{}
+	res := newResponse()
 
 	// 讀url的參數
 	paramGameID, err := checkURLGameID(r)
@@ -264,12 +260,8 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res.Status = success
-	res.Data["gameID"] = []interface{}{
-		paramGameID,
-	}
-	res.Data["gameType"] = []interface{}{
-		gameInfo.GameType,
-	}
+	res.Data["gameID"] = paramGameID
+	res.Data["gameType"] = gameInfo.GameType
 	json.NewEncoder(w).Encode(res)
 
 	return
@@ -305,10 +297,10 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 	if !owner {
 		// 把這個會員從redis的玩家中刪掉
 		var newPlayers Players
-		var delUserKey int
+		var delUserKey int32
 		for index, player := range gameInfo.Players {
 			if player.ID == userID {
-				delUserKey = index
+				delUserKey = int32(index)
 			}
 		}
 		newPlayers = append(gameInfo.Players[:(delUserKey)], gameInfo.Players[(delUserKey+1):]...)
@@ -335,13 +327,13 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// 場主
 		// 改db欄位
-		err := changeGameStateDB(gameID, close)
+		err := model.ChangeGameStateDB(gameID, close)
 		if ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500) {
 			return
 		}
 
 		// redis delete
-		rediskey := strconv.Itoa(gameID) + "_gameInfo"
+		rediskey := strconv.Itoa(int(gameID)) + "_gameInfo"
 		goRedis.Del(rediskey)
 
 		// 踢人的推播，玩家全踢
@@ -349,6 +341,9 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 		if ErrorManner.ErrorRespone(err, UNEXPECT_BROADCAST_ERROR, w, 500) {
 			return
 		}
+
+		// TODO
+		// 這邊要補一個room delete的event
 	}
 
 	// session去掉
@@ -375,7 +370,7 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 把遊戲狀態改為開始遊戲
-	err = changeGameStateDB(gameID, playing)
+	err = model.ChangeGameStateDB(gameID, playing)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500) {
 		return
 	}
@@ -393,17 +388,15 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 	// 推播開始遊戲
 	pushStartGame(gameID, gameInfo.GameType)
 	// call gamecenter
-	createGameByGameCenter(gameID, gameInfo.GameType)
+	if err := createGameByGameCenter(gameID, gameInfo.GameType, gameInfo.Players); err != nil {
+		ErrorManner.ErrorRespone(err, CREATE_GAME_ERROR, w, 500)
+		return
+	}
 
-	var res Response
+	res := newResponse()
 	res.Status = success
-	res.Data = map[string][]interface{}{}
-	res.Data["gameID"] = []interface{}{
-		gameID,
-	}
-	res.Data["gameType"] = []interface{}{
-		gameInfo.GameType,
-	}
+	res.Data["gameID"] = gameID
+	res.Data["gameType"] = gameInfo.GameType
 
 	json.NewEncoder(w).Encode(res)
 }
@@ -411,7 +404,7 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 // 取得RoomList
 func getRoomList(w http.ResponseWriter, r *http.Request) {
 	// 去db讀還開放玩家加入的遊戲
-	gameData, err := findOpeningGame()
+	gameData, err := model.FindAllGameByState(opening)
 	if err != nil {
 		ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500)
 	}
@@ -434,6 +427,40 @@ func getRoomList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(res)
 }
 
+func gameInfo(w http.ResponseWriter, r *http.Request) {
+	// 判斷user是否在這場遊戲中
+	auth, userID, _, userJoinedGameID, _ := getSessionUserInfo(r)
+	if !auth || userJoinedGameID == 0 {
+		ErrorManner.ErrorRespone(errors.New("User Action error"), USER_ACTION_ERROR, w, 400)
+		return
+	}
+
+	gameID, err := checkURLGameID(r)
+	if ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400) {
+		return
+	}
+
+	if userJoinedGameID != gameID {
+		ErrorManner.ErrorRespone(errors.New("User Action error"), USER_ACTION_ERROR, w, 400)
+	}
+
+	// 找gameType
+	gameInfo, err := getGameInfoByGameID(gameID)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
+		return
+	}
+
+	// call gamecenter
+	if err := getGameInfo([]int32{userID}, gameID, gameInfo.GameType); err != nil {
+		ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500)
+		return
+	}
+
+	var res Response
+	res.Status = success
+	json.NewEncoder(w).Encode(res)
+}
+
 // API 檢查是否支援這遊戲
 func checkGameSupport(game string) bool {
 	// 判斷遊戲開關
@@ -445,7 +472,7 @@ func checkGameSupport(game string) bool {
 }
 
 // 檢查URL的GameID參數是否支援這遊戲
-func checkURLGameID(r *http.Request) (int, error) {
+func checkURLGameID(r *http.Request) (int32, error) {
 	IDArrs := r.URL.Query()["id"]
 	if len(IDArrs) < 1 {
 		return 0, errors.New("Url Param 'id' is missing")
@@ -460,10 +487,10 @@ func checkURLGameID(r *http.Request) (int, error) {
 		return 0, errors.New("ID 轉換錯誤")
 	}
 
-	return ParamID, nil
+	return int32(ParamID), nil
 }
 
-func isOwner(gameID int, userID int) (bool, error) {
+func isOwner(gameID int32, userID int32) (bool, error) {
 	gameInfo, err := getGameInfoByGameID(gameID)
 
 	if err != nil {

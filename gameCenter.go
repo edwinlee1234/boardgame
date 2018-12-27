@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 
+	ErrorManner "./error"
 	pb "./proto"
 
 	"google.golang.org/grpc"
@@ -28,16 +30,58 @@ func connectGameCenter() {
 	log.Println(r.State)
 }
 
-//	call gamecenter to create game
-func createGameByGameCenter(gameID int, gameType string) {
-	r, err := gameCenter.CreateGame(context.Background(), &pb.CreateGameRequest{
-		GameID:   int32(gameID),
+// 推播遊戲資料by userID
+func getGameInfo(userID []int32, gameID int32, gameType string) error {
+	r, err := gameCenter.GameInfo(context.Background(), &pb.GameInfoRequest{
+		GameID:   gameID,
 		GameType: gameType,
+		UserID:   userID,
 	})
 
 	if err != nil {
-		log.Fatalf("create game error by gamecenter: %v", err)
+		ErrorManner.LogsMessage(err, "GameInfo grpc Error")
+		return err
 	}
 
-	log.Println(r.State)
+	if r.State == success {
+		return nil
+	}
+
+	return errors.New("Have no GameInfo success message")
+}
+
+//	call gamecenter to create game
+func createGameByGameCenter(gameID int32, gameType string, players Players) error {
+	r, err := gameCenter.CreateGame(context.Background(), &pb.CreateGameRequest{
+		GameID:   gameID,
+		GameType: gameType,
+		Players:  compilePlayerToAPIPlayer(players),
+	})
+
+	if err != nil {
+		ErrorManner.LogsMessage(err, "Create Game grpc Error")
+		return err
+	}
+
+	if r.State == success {
+		return nil
+	}
+
+	return errors.New("Have no CreateGame success message")
+}
+
+// TODO看可不可以有更好的處理方式，去轉換proto的格式
+func compilePlayerToAPIPlayer(players Players) *pb.Players {
+	var apiPlayers pb.Players
+	for _, player := range players {
+		var apiPlayer pb.Player
+
+		apiPlayer.ID = int32(player.ID)
+		apiPlayer.Name = player.Name
+		apiPlayer.UUID = player.UUID
+
+		apiPlayers.PlayerList = append(apiPlayers.PlayerList, &apiPlayer)
+	}
+
+	return &apiPlayers
 }

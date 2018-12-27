@@ -1,33 +1,28 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
 
 	middleware "./middleware"
 	pb "./proto"
-	ws "./ws"
 
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/sessions"
+	redistore "gopkg.in/boj/redistore.v1"
 )
 
 var (
 	key   = []byte("super-secret-key")
-	store = sessions.NewCookieStore(key)
+	store *redistore.RediStore
 )
 
 // gamecenter address
 const (
 	gameCenterAddress = "gamecenter:50051"
 )
-
-// MySQL
-var db *sql.DB
 
 // Redis
 var goRedis *redis.Client
@@ -38,9 +33,8 @@ var gameCenter pb.GameCenterClient
 func init() {
 	connectDb()
 	connectRedis()
+	connectRedisStore()
 	connectGameCenter()
-	ws.CreateGroup()
-	ws.CreateLobby()
 }
 
 func main() {
@@ -50,16 +44,14 @@ func main() {
 	// Test
 	r.HandleFunc("/", index).Methods("GET", "OPTIONS")
 	r.HandleFunc("/test", test).Methods("GET", "OPTIONS")
-	r.HandleFunc("/showChannel", showChannel).Methods("GET", "OPTIONS")
-
-	// WS
-	r.HandleFunc("/ws", wsInstance).Methods("GET", "OPTIONS")
 
 	// API v1
 	api := r.PathPrefix("/api").Subrouter()
 	api.HandleFunc("/init", initInfo).Methods("GET", "OPTIONS")
+	api.HandleFunc("/checkChannel", checkChannel).Methods("GET", "OPTIONS")
 	api.HandleFunc("/user/login", loginUser).Methods("POST", "OPTIONS")
 	api.HandleFunc("/user/register", registerUser).Methods("POST", "OPTIONS")
+	api.HandleFunc("/user/logout", logout).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/gamesupport", supportGame).Methods("GET", "OPTIONS")
 	api.HandleFunc("/creategame", gameInstance).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/roomlist", getRoomList).Methods("GET", "OPTIONS")
@@ -68,6 +60,7 @@ func main() {
 	api.HandleFunc("/game/joingame", gameRoomJoin).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/game/roomClose", gameRoomClose).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/game/startgame", gameStart).Methods("PUT", "OPTIONS")
+	api.HandleFunc("/game/info", gameInfo).Methods("GET", "OPTIONS")
 
 	err := http.ListenAndServe(":8300", r)
 	if err != nil {
@@ -113,12 +106,19 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
-	authorization, userID, userName, gameID, err := getSessionUserInfo(r)
-	gameInfo, err := getGameInfoByGameID(gameID)
-	log.Println(authorization, userID, userName, gameID, err)
-	log.Println(gameInfo, err)
-}
+	var players Players
+	players = append(players,
+		Player{
+			1,
+			"12344",
+			"QQ",
+		},
+		Player{
+			2,
+			"1234123134",
+			"GOD",
+		},
+	)
 
-func showChannel(w http.ResponseWriter, r *http.Request) {
-	ws.CheckAllChannel()
+	createGameByGameCenter(0, "jaipur", players)
 }

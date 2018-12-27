@@ -15,3 +15,14 @@ webSocket的Package->server.go
 我只有做一層redis
 如果redis值不見了，那就直接噴掉
 這個後面改成redis沒東西，就改去讀DB的
+
+
+user -> point32、ELO欄位
+
+看要不要開一支處理期數的物件
+把gameID去instance一個
+
+多用Goroutine
+
+全部API放一個recover的middleware
+讓server不會那麼容易爆掉

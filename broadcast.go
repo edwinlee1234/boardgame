@@ -1,13 +1,24 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"log"
+	"net/http"
 
-	ws "./ws"
+	model "./model"
 )
 
-func pushOpenGame(gameID int) error {
+const wsURL = "http://ws:8000"
+
+// BroadcastRequest 推播的request格式
+type BroadcastRequest struct {
+	ChannelID int32  `json:"channed_id"`
+	Data      []byte `json:"data"`
+}
+
+func pushOpenGame(gameID int32) error {
 	var openGame OpenGame
 	// 用gameID去撈DB
 	gameInfo, err := getGameInfoByGameID(gameID)
@@ -15,7 +26,7 @@ func pushOpenGame(gameID int) error {
 		return err
 	}
 
-	gameType, state, seat, time := findGameByGameID(gameID)
+	gameType, state, seat, time := model.FindGameByGameID(gameID)
 
 	// Redis沒有人，這樣不對
 	if len(gameInfo.Players) <= 0 {
@@ -28,7 +39,7 @@ func pushOpenGame(gameID int) error {
 	}
 
 	// 改變state db
-	if err := changeGameStateDB(gameID, opening); err != nil {
+	if err := model.ChangeGameStateDB(gameID, opening); err != nil {
 		return errors.New("change db state Error")
 	}
 	// 改變state reids
@@ -37,7 +48,7 @@ func pushOpenGame(gameID int) error {
 	}
 
 	// 計算剩下的空位
-	seat = seat - len(gameInfo.Players)
+	seat = seat - int32(len(gameInfo.Players))
 
 	openGame.Event = "openGame"
 	openGame.Data.GameID = gameID
@@ -53,13 +64,27 @@ func pushOpenGame(gameID int) error {
 	}
 
 	// 推播到lobby的頻道
-	ws.BroadcastChannel(ws.LobbyID, broadcastData)
+	broadcastChannel(LobbyChannelID, broadcastData)
 
 	return nil
 }
 
+// 推播 post去ws機
+func broadcastChannel(channelID int32, data []byte) {
+	var req BroadcastRequest
+	req.ChannelID = channelID
+	req.Data = data
+
+	jsonValue, _ := json.Marshal(req)
+	_, err := http.Post(wsURL+"/broadcast", "application/json", bytes.NewBuffer(jsonValue))
+
+	if err != nil {
+		log.Println(err)
+	}
+}
+
 // 有人加入遊戲的推播
-func pushChangePlayer(gameID int, players Players) error {
+func pushChangePlayer(gameID int32, players Players) error {
 	var changePlayer ChangePlayer
 	changePlayer.Event = "ChangePlayer"
 	changePlayer.Data = players
@@ -69,13 +94,13 @@ func pushChangePlayer(gameID int, players Players) error {
 		return err
 	}
 
-	ws.BroadcastChannel(gameID, broadcastData)
+	broadcastChannel(gameID, broadcastData)
 
 	return nil
 }
 
 // 開始遊戲
-func pushStartGame(gameID int, gameType string) error {
+func pushStartGame(gameID int32, gameType string) error {
 	var startGame StartGame
 	var startGameData StartGameData
 	startGameData.GameID = gameID
@@ -89,13 +114,13 @@ func pushStartGame(gameID int, gameType string) error {
 		return err
 	}
 
-	ws.BroadcastChannel(gameID, broadcastData)
+	broadcastChannel(gameID, broadcastData)
 
 	return nil
 }
 
 // Room變動的推播
-func pushRoomChange(gameID int) error {
+func pushRoomChange(gameID int32) error {
 	// 用gameID去撈DB
 	gameInfo, err := getGameInfoByGameID(gameID)
 	if err != nil {
@@ -113,13 +138,13 @@ func pushRoomChange(gameID int) error {
 	}
 
 	// 推播到lobby的頻道
-	ws.BroadcastChannel(ws.LobbyID, broadcastData)
+	broadcastChannel(LobbyChannelID, broadcastData)
 
 	return nil
 }
 
 // 踢掉玩家
-func pushKickPlayers(gameID int, players Players) error {
+func pushKickPlayers(gameID int32, players Players) error {
 	var kick KickPlayers
 
 	kick.Event = "Kick"
@@ -130,7 +155,7 @@ func pushKickPlayers(gameID int, players Players) error {
 		return err
 	}
 
-	ws.BroadcastChannel(gameID, broadcastData)
+	broadcastChannel(gameID, broadcastData)
 
 	return nil
 }

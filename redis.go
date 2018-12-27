@@ -8,7 +8,24 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
+	redistore "gopkg.in/boj/redistore.v1"
 )
+
+func connectRedisStore() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	host := os.Getenv("REDIS_HOST")
+	password := os.Getenv("REDIS_PASSWORD")
+	port := os.Getenv("REDIS_PORT")
+
+	store, err = redistore.NewRediStore(10, "tcp", host+":"+port, password, key)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func connectRedis() {
 	err := godotenv.Load()
@@ -34,8 +51,8 @@ func connectRedis() {
 }
 
 // 用gameID去Redis讀遊戲資料
-func getGameInfoByGameID(gameID int) (OpenGameData, error) {
-	rediskey := strconv.Itoa(gameID) + "_gameInfo"
+func getGameInfoByGameID(gameID int32) (OpenGameData, error) {
+	rediskey := strconv.Itoa(int(gameID)) + "_gameInfo"
 	infoJSON, err := goRedis.Get(rediskey).Result()
 	if err != nil {
 		return OpenGameData{}, err
@@ -51,13 +68,14 @@ func getGameInfoByGameID(gameID int) (OpenGameData, error) {
 }
 
 // 改Redis gameinfo 值的func
-func changeGameInfoRedis(gameID int, emptySeat int, status int, playersData Players) error {
+// status && emptySeat 帶-1，程式就會跳過
+func changeGameInfoRedis(gameID int32, emptySeat int32, status int32, playersData Players) error {
 	gameInfo, err := getGameInfoByGameID(gameID)
 	if err != nil {
 		return err
 	}
 
-	rediskey := strconv.Itoa(gameID) + "_gameInfo" // int -> string
+	rediskey := strconv.Itoa(int(gameID)) + "_gameInfo" // int32 -> string
 
 	if status != -1 {
 		gameInfo.Status = status

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	ErrorManner "./error"
+	model "./model"
 
 	//Hash
 	"golang.org/x/crypto/bcrypt"
@@ -47,13 +48,14 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 驗證帳密
-	ID, _, userHashPassword, err := getUserInfoByUserName(userName)
+	ID, _, userHashPassword, err := model.GetUserInfoByUserName(userName)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500) {
 		return
 	}
 
 	if !checkPasswordHash(password, userHashPassword) {
 		ErrorManner.ErrorRespone(errors.New("User Name or Password Error"), LOGIN_WORNG, w, 400)
+		return
 	}
 
 	// Save session
@@ -94,7 +96,7 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 檢查使用者存在
-	_, existUserName, _, _ := getUserInfoByUserName(userName)
+	_, existUserName, _, _ := model.GetUserInfoByUserName(userName)
 	if existUserName != "" {
 		ErrorManner.ErrorRespone(errors.New("UserName is Exist"), EXIST_USER, w, 400)
 		return
@@ -105,7 +107,7 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = regsiterUser(userName, hash)
+	_, err = model.RegsiterUser(userName, hash)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 500) {
 		return
 	}
@@ -131,7 +133,7 @@ func checkPasswordHash(password, hash string) bool {
 }
 
 // 取得session的會員資料
-func getSessionUserInfo(r *http.Request) (authorization bool, userID int, userName string, gameID int, err error) {
+func getSessionUserInfo(r *http.Request) (authorization bool, userID int32, userName string, gameID int32, err error) {
 	session, err := store.Get(r, "userInfo")
 
 	if err != nil {
@@ -140,8 +142,22 @@ func getSessionUserInfo(r *http.Request) (authorization bool, userID int, userNa
 
 	authorization, _ = session.Values["login"].(bool)
 	userName, _ = session.Values["userName"].(string)
-	userID, _ = session.Values["userID"].(int)
-	gameID, _ = session.Values["gameID"].(int)
+	userID, _ = session.Values["userID"].(int32)
+	gameID, _ = session.Values["gameID"].(int32)
 
 	return authorization, userID, userName, gameID, nil
+}
+
+// 會員登出
+func logout(w http.ResponseWriter, r *http.Request) {
+	session, _ := store.Get(r, "userInfo")
+	session.Values["login"] = false
+	session.Values["userName"] = ""
+	session.Values["userID"] = 0
+	session.Save(r, w)
+
+	var res Response
+	res.Status = success
+
+	json.NewEncoder(w).Encode(res)
 }

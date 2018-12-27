@@ -1,52 +1,33 @@
 package main
 
 import (
-	"log"
+	"encoding/json"
+	"errors"
 	"net/http"
-	"strconv"
 
-	ws "./ws"
+	ErrorManner "./error"
 
 	"github.com/satori/go.uuid"
 )
 
-// 對應client傳進來那一個channel去接連線
-func wsInstance(w http.ResponseWriter, r *http.Request) {
+// 開給ws機用的，去檢查這個channel的合法性
+func checkChannel(w http.ResponseWriter, r *http.Request) {
 	channelParams := r.URL.Query()["channel"]
 	if len(channelParams) < 1 {
-		log.Println("Url Param 'channel' is missing")
+		ErrorManner.ErrorRespone(errors.New("channel empty"), DATA_EMPTY, w, 400)
 		return
 	}
 
 	// 判斷頻道開關
 	channel := channelParams[0]
 	if open, exist := channelSupport[channel]; !exist || !open {
-		log.Println(channel, " is not support")
+		ErrorManner.ErrorRespone(errors.New("channel error"), CHANNEL_ERROR, w, 400)
 		return
 	}
-	log.Println("channelParams", channelParams)
-	userUUID := getUserUUID(w, r)
-	log.Println("UUID", userUUID)
 
-	var channelID int
-	channelIDArrs := r.URL.Query()["id"]
-	if len(channelIDArrs) >= 1 {
-		var err error
-		channelIDArr := channelIDArrs[0]
-		channelID, err = strconv.Atoi(channelIDArr)
-
-		if err != nil {
-			log.Println("create channel error")
-			return
-		}
-	}
-
-	if channel == "lobby" {
-		channelID = 1
-	}
-
-	// 連線ws
-	ws.ConnWs(channelID, userUUID, w, r)
+	var res Response
+	res.Status = success
+	json.NewEncoder(w).Encode(res)
 }
 
 // 取得UUID
