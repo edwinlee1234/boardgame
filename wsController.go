@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	ErrorManner "./error"
+	ErrorManner "boardgame_server/error"
 
 	"github.com/satori/go.uuid"
 )

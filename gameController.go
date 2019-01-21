@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	ErrorManner "./error"
-	model "./model"
+	ErrorManner "boardgame_server/error"
+	model "boardgame_server/model"
 
 	valid "github.com/asaskevich/govalidator"
 )
@@ -456,8 +456,41 @@ func gameInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var res Response
+	res := newResponse()
 	res.Status = success
+	res.Data["players"] = gameInfo.Players
+	json.NewEncoder(w).Encode(res)
+}
+
+func jaipurActionProcess(w http.ResponseWriter, r *http.Request) {
+	// 判斷user是否在這場遊戲中
+	auth, userID, _, userJoinedGameID, _ := getSessionUserInfo(r)
+	if !auth || userJoinedGameID == 0 {
+		ErrorManner.ErrorRespone(errors.New("User Action error"), USER_ACTION_ERROR, w, 400)
+		return
+	}
+
+	var action JaipurAction
+	if r.Body == nil {
+		ErrorManner.ErrorRespone(errors.New("Please send a request body"), DATA_EMPTY, w, 400)
+		return
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&action)
+	if err != nil {
+		ErrorManner.ErrorRespone(err, DATA_EMPTY, w, 400)
+		return
+	}
+
+	// To gamecenter grpc
+	if err := jaipurAction(userID, userJoinedGameID, "jaipur", action); err != nil {
+		ErrorManner.ErrorRespone(err, UNEXPECT_ERROR, w, 400)
+		return
+	}
+
+	res := newResponse()
+	res.Status = success
+
 	json.NewEncoder(w).Encode(res)
 }
 

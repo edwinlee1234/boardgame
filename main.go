@@ -2,11 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
-	middleware "./middleware"
-	pb "./proto"
+	middleware "boardgame_server/middleware"
+	pb "boardgame_server/proto"
 
 	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
@@ -62,6 +63,8 @@ func main() {
 	api.HandleFunc("/game/startgame", gameStart).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/game/info", gameInfo).Methods("GET", "OPTIONS")
 
+	api.HandleFunc("/game/jaipur/action", jaipurActionProcess).Methods("POST", "OPTIONS")
+
 	err := http.ListenAndServe(":8300", r)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
@@ -74,7 +77,7 @@ func initInfo(w http.ResponseWriter, r *http.Request) {
 	res.Status = success
 
 	// 登入的判斷 start
-	authorization, _, userName, gameID, err := getSessionUserInfo(r)
+	authorization, userID, userName, gameID, err := getSessionUserInfo(r)
 	if err != nil && !authorization {
 		res.Authorization = false
 		json.NewEncoder(w).Encode(res)
@@ -98,6 +101,7 @@ func initInfo(w http.ResponseWriter, r *http.Request) {
 
 	res.GameType = gameInfo.GameType
 	res.GameID = gameInfo.GameID
+	res.UserID = userID
 
 	json.NewEncoder(w).Encode(res)
 }
@@ -106,6 +110,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("!")
 	var players Players
 	players = append(players,
 		Player{
@@ -119,6 +124,16 @@ func test(w http.ResponseWriter, r *http.Request) {
 			"GOD",
 		},
 	)
+	fmt.Println("!")
+	createGameByGameCenter(32, "jaipur", players)
 
-	createGameByGameCenter(0, "jaipur", players)
+	action := JaipurAction{
+		"take",
+		1,
+		nil,
+		nil,
+		nil,
+	}
+
+	jaipurAction(1, 32, "jaipur", action)
 }

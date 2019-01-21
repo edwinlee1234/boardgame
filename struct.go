@@ -31,6 +31,7 @@ type RoomListResponse struct {
 type Init struct {
 	Status        string `json:"status"`
 	Authorization bool   `json:"authorization"`
+	UserID        int32  `json:"userID"`
 	UserName      string `json:"userName"`
 	GameType      string `json:"gameType"`
 	GameID        int32  `json:"gameID"`
@@ -94,4 +95,20 @@ type StartGameData struct {
 type KickPlayers struct {
 	Event string  `json:"event"`
 	Data  Players `json:"data"`
+}
+
+// JaipurActionRequest JaipurActionRequest
+type JaipurActionRequest struct {
+	GameID   int32        `json:"gameID"`
+	GameType string       `json:"gameType"`
+	Action   JaipurAction `json:"action"`
+}
+
+// JaipurAction JaipurAction
+type JaipurAction struct {
+	Type             string  `json:"type"`
+	Take             int32   `json:"take"`
+	Sell             []int32 `json:"sell"`
+	SwitchSelfCard   []int32 `json:"switchSelfCard"`
+	SwitchTargetCard []int32 `json:"switchTargetCard"`
 }

@@ -1,6 +1,5 @@
-github.com/*
-golang.org/*
+vendor/*
 proto/*
-google.golang.org/*
 .vscode
 .DS_Stores
+.DS_Store

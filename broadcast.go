@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	model "./model"
+	model "boardgame_server/model"
 )
 
 const wsURL = "http://ws:8000"

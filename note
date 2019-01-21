@@ -17,8 +17,6 @@ webSocket的Package->server.go
 這個後面改成redis沒東西，就改去讀DB的
 
 
-user -> point32、ELO欄位
-
 看要不要開一支處理期數的物件
 把gameID去instance一個
 

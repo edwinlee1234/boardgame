@@ -6,8 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	ErrorManner "./error"
-	model "./model"
+	ErrorManner "boardgame_server/error"
+	model "boardgame_server/model"
 
 	//Hash
 	"golang.org/x/crypto/bcrypt"

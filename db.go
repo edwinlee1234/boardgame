@@ -4,7 +4,8 @@ import (
 	"log"
 	"os"
 
-	model "./model"
+	model "boardgame_server/model"
+
 	"github.com/joho/godotenv"
 
 	_ "github.com/go-sql-driver/mysql"
