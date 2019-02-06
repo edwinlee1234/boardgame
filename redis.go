@@ -52,7 +52,7 @@ func connectRedis() {
 
 // 用gameID去Redis讀遊戲資料
 func getGameInfoByGameID(gameID int32) (OpenGameData, error) {
-	rediskey := strconv.Itoa(int(gameID)) + "_gameInfo"
+	rediskey := gameInfoRedisPrefix(gameID)
 	infoJSON, err := goRedis.Get(rediskey).Result()
 	if err != nil {
 		return OpenGameData{}, err
@@ -75,7 +75,7 @@ func changeGameInfoRedis(gameID int32, emptySeat int32, status int32, playersDat
 		return err
 	}
 
-	rediskey := strconv.Itoa(int(gameID)) + "_gameInfo" // int32 -> string
+	rediskey := gameInfoRedisPrefix(gameID)
 
 	if status != -1 {
 		gameInfo.Status = status
@@ -93,4 +93,8 @@ func changeGameInfoRedis(gameID int32, emptySeat int32, status int32, playersDat
 	goRedis.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
 
 	return nil
+}
+
+func gameInfoRedisPrefix(gameID int32) string {
+	return "game_info:" + strconv.Itoa(int(gameID))
 }

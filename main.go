@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -56,14 +55,19 @@ func main() {
 	api.HandleFunc("/gamesupport", supportGame).Methods("GET", "OPTIONS")
 	api.HandleFunc("/creategame", gameInstance).Methods("PUT", "OPTIONS")
 	api.HandleFunc("/roomlist", getRoomList).Methods("GET", "OPTIONS")
-	api.HandleFunc("/game/openplayer", gameOpen).Methods("PUT", "OPTIONS")
-	api.HandleFunc("/game/roomInfo", gameRoomInfo).Methods("GET", "OPTIONS")
-	api.HandleFunc("/game/joingame", gameRoomJoin).Methods("PUT", "OPTIONS")
-	api.HandleFunc("/game/roomClose", gameRoomClose).Methods("PUT", "OPTIONS")
-	api.HandleFunc("/game/startgame", gameStart).Methods("PUT", "OPTIONS")
-	api.HandleFunc("/game/info", gameInfo).Methods("GET", "OPTIONS")
 
-	api.HandleFunc("/game/jaipur/action", jaipurActionProcess).Methods("POST", "OPTIONS")
+	// Game api
+	gameAPI := api.PathPrefix("/game").Subrouter()
+	gameAPI.HandleFunc("/openplayer", gameOpen).Methods("PUT", "OPTIONS")
+	gameAPI.HandleFunc("/roomInfo", gameRoomInfo).Methods("GET", "OPTIONS")
+	gameAPI.HandleFunc("/joingame", gameRoomJoin).Methods("PUT", "OPTIONS")
+	gameAPI.HandleFunc("/roomClose", gameRoomClose).Methods("PUT", "OPTIONS")
+	gameAPI.HandleFunc("/startgame", gameStart).Methods("PUT", "OPTIONS")
+	gameAPI.HandleFunc("/info", gameInfo).Methods("GET", "OPTIONS")
+
+	// Jaiput api
+	jaipur := gameAPI.PathPrefix("/jaipur").Subrouter()
+	jaipur.HandleFunc("/action", jaipurActionProcess).Methods("POST", "OPTIONS")
 
 	err := http.ListenAndServe(":8300", r)
 	if err != nil {
@@ -110,30 +114,4 @@ func index(w http.ResponseWriter, r *http.Request) {
 }
 
 func test(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("!")
-	var players Players
-	players = append(players,
-		Player{
-			1,
-			"12344",
-			"QQ",
-		},
-		Player{
-			2,
-			"1234123134",
-			"GOD",
-		},
-	)
-	fmt.Println("!")
-	createGameByGameCenter(32, "jaipur", players)
-
-	action := JaipurAction{
-		"take",
-		1,
-		nil,
-		nil,
-		nil,
-	}
-
-	jaipurAction(1, 32, "jaipur", action)
 }

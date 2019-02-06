@@ -97,6 +97,11 @@ type KickPlayers struct {
 	Data  Players `json:"data"`
 }
 
+type CloseRoom struct {
+	Event  string `json:"event"`
+	GameID int32  `json:"gameID"`
+}
+
 // JaipurActionRequest JaipurActionRequest
 type JaipurActionRequest struct {
 	GameID   int32        `json:"gameID"`

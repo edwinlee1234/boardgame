@@ -9,7 +9,7 @@ type Users struct {
 
 // GetUserInfoByUserName Get user info by user name
 func GetUserInfoByUserName(userName string) (id int32, name string, password string, err error) {
-	row := db.QueryRow("SELECT `id`, `name`, `password` FROM `users` WHERE `name` = ?", userName)
+	row := DB.QueryRow("SELECT `id`, `name`, `password` FROM `users` WHERE `name` = ?", userName)
 	err = row.Scan(&id, &name, &password)
 
 	return id, name, password, err
@@ -17,7 +17,7 @@ func GetUserInfoByUserName(userName string) (id int32, name string, password str
 
 // RegsiterUser RegsiterUser
 func RegsiterUser(userName, password string) (int32, error) {
-	stmt, err := db.Prepare("INSERT INTO `users` (`name`,`password`) VALUES (?,?)")
+	stmt, err := DB.Prepare("INSERT INTO `users` (`name`,`password`) VALUES (?,?)")
 
 	if err != nil {
 		return 0, err

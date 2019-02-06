@@ -11,12 +11,29 @@ type GameState struct {
 	UpdateTime string
 }
 
+// GameState
+
+// NotOpen owner only
+const NotOpen = 0
+
+// Opening 開放玩家
+const Opening = 1
+
+// Playing 遊戲中
+const Playing = 2
+
+// Close 關
+const Close = 4
+
+// Abort 放棄
+const Abort = 5
+
 // GameStateList GameStateList
 type GameStateList []GameState
 
 // CreateGame 新增一局遊戲
-func CreateGame(game string, seat int32, insertTime int32) (int32, error) {
-	stmt, err := db.Prepare("INSERT INTO game_state (type, seat, insert_time) VALUES (?, ?, ?)")
+func CreateGame(game string, seat int32, insertTime int64) (int32, error) {
+	stmt, err := DB.Prepare("INSERT INTO game_state (type, seat, create_timestamp) VALUES (?, ?, ?)")
 	if err != nil {
 		return 0, err
 	}
@@ -36,7 +53,7 @@ func CreateGame(game string, seat int32, insertTime int32) (int32, error) {
 
 // FindGameByGameID 用GameID去game_state搜尋遊戲資料
 func FindGameByGameID(id int32) (gameType string, state int32, seat int32, time int32) {
-	row := db.QueryRow("SELECT `type`, `state`, `seat`, `insert_time` game_state FROM `game_state` WHERE `id` = ? LIMIT 1", id)
+	row := DB.QueryRow("SELECT `type`, `state`, `seat`, `create_timestamp` game_state FROM `game_state` WHERE `id` = ? LIMIT 1", id)
 	row.Scan(&gameType, &state, &seat, &time)
 
 	return gameType, state, seat, time
@@ -44,7 +61,7 @@ func FindGameByGameID(id int32) (gameType string, state int32, seat int32, time 
 
 // ChangeGameStateDB 改變state
 func ChangeGameStateDB(id int32, state int32) error {
-	stmt, _ := db.Prepare("UPDATE `game_state` set `state` = ? where `id` = ?")
+	stmt, _ := DB.Prepare("UPDATE `game_state` set `state` = ? where `id` = ?")
 	res, _ := stmt.Exec(state, id)
 
 	affect, err := res.RowsAffected()
@@ -59,8 +76,8 @@ func ChangeGameStateDB(id int32, state int32) error {
 func FindAllGameByState(state int32) (GameStateList, error) {
 	var res GameStateList
 
-	rows, err := db.Query(
-		"SELECT `id`, `type`, `state`, `seat`, `insert_time`, `update_time` FROM `game_state` WHERE `state` = ?", state)
+	rows, err := DB.Query(
+		"SELECT `id`, `type`, `state`, `seat`, `create_timestamp`, `update_time` FROM `game_state` WHERE `state` = ?", state)
 	if err != nil {
 		return res, err
 	}

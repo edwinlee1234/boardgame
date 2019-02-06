@@ -34,16 +34,16 @@ func pushOpenGame(gameID int32) error {
 	}
 
 	// 已經開放了
-	if state != notOpen {
+	if state != model.NotOpen {
 		return errors.New("OpenGame Err")
 	}
 
 	// 改變state db
-	if err := model.ChangeGameStateDB(gameID, opening); err != nil {
+	if err := model.ChangeGameStateDB(gameID, model.Opening); err != nil {
 		return errors.New("change db state Error")
 	}
 	// 改變state reids
-	if err := changeGameInfoRedis(gameID, -1, opening, nil); err != nil {
+	if err := changeGameInfoRedis(gameID, -1, model.Opening, nil); err != nil {
 		return errors.New("change redis state Error")
 	}
 
@@ -156,6 +156,22 @@ func pushKickPlayers(gameID int32, players Players) error {
 	}
 
 	broadcastChannel(gameID, broadcastData)
+
+	return nil
+}
+
+// 場主放棄遊戲
+func pushCloseRoom(gameID int32) error {
+	var closeRoom CloseRoom
+	closeRoom.Event = "CloseRoom"
+	closeRoom.GameID = gameID
+
+	broadcastData, err := json.Marshal(closeRoom)
+	if err != nil {
+		return err
+	}
+
+	broadcastChannel(LobbyChannelID, broadcastData)
 
 	return nil
 }

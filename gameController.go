@@ -21,12 +21,12 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 
 	gameParams := r.URL.Query()["game"]
 	if len(gameParams) < 1 {
-		log.Println("Url Param 'game' is missing")
+		ErrorManner.ErrorRespone(errors.New("Url Param 'game' is missing"), DATA_EMPTY, w, 400)
 		return
 	}
 	game := gameParams[0]
 	if !checkGameSupport(game) {
-		log.Println(game, " is not support")
+		ErrorManner.ErrorRespone(errors.New(game+" is not support"), USER_ACTION_ERROR, w, 400)
 		return
 	}
 
@@ -45,7 +45,7 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// DB插新的一局
-	timestamp := int32(time.Now().Unix())
+	timestamp := time.Now().Unix()
 	idInt64, err := model.CreateGame(game, defaultSeat, timestamp)
 	id := int32(idInt64) // int64 -> int32
 	if id == 0 || err != nil {
@@ -56,7 +56,7 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	// 寫入Redis
 	// 把遊戲的資訊全部都寫進去
 	userUUID := getUserUUID(w, r)
-	rediskey := strconv.Itoa(int(id)) + "_gameInfo" // int32 -> string
+	rediskey := gameInfoRedisPrefix(id)
 	var gameInfo OpenGameData
 	// 玩家人數
 	var players Players
@@ -66,13 +66,13 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 		Name: userName,
 	})
 
-	gameInfo.CreateTime = timestamp
+	gameInfo.CreateTime = int32(timestamp)
 	// 減掉場主自已
 	gameInfo.EmptySeat = defaultSeat - 1
 	gameInfo.GameID = id
 	gameInfo.GameType = game
 	gameInfo.Players = players
-	gameInfo.Status = notOpen
+	gameInfo.Status = model.NotOpen
 
 	gameInfoJSON, _ := json.Marshal(gameInfo)
 	goRedis.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
@@ -157,9 +157,9 @@ func gameRoomInfo(w http.ResponseWriter, r *http.Request) {
 	roomInfo.Data = gameInfo.Players
 
 	// Room開放了玩家了沒
-	if gameInfo.Status == notOpen {
+	if gameInfo.Status == model.NotOpen {
 		roomInfo.RoomState = "notOpen"
-	} else if gameInfo.Status == opening {
+	} else if gameInfo.Status == model.Opening {
 		roomInfo.RoomState = "opening"
 	} else {
 		roomInfo.RoomState = "playing"
@@ -225,7 +225,7 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 判斷是否開放玩家
-	if gameInfo.Status != opening {
+	if gameInfo.Status != model.Opening {
 		ErrorManner.ErrorRespone(errors.New("Game playing"), USER_ACTION_ERROR, w, 400)
 		return
 	}
@@ -327,14 +327,13 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// 場主
 		// 改db欄位
-		err := model.ChangeGameStateDB(gameID, close)
+		err := model.ChangeGameStateDB(gameID, model.Close)
 		if ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500) {
 			return
 		}
 
 		// redis delete
-		rediskey := strconv.Itoa(int(gameID)) + "_gameInfo"
-		goRedis.Del(rediskey)
+		goRedis.Del(gameInfoRedisPrefix(gameID))
 
 		// 踢人的推播，玩家全踢
 		err = pushKickPlayers(gameID, gameInfo.Players)
@@ -342,8 +341,11 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// TODO
-		// 這邊要補一個room delete的event
+		// room delete的event
+		err = pushCloseRoom(gameID)
+		if ErrorManner.ErrorRespone(err, UNEXPECT_BROADCAST_ERROR, w, 500) {
+			return
+		}
 	}
 
 	// session去掉
@@ -370,11 +372,11 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 把遊戲狀態改為開始遊戲
-	err = model.ChangeGameStateDB(gameID, playing)
+	err = model.ChangeGameStateDB(gameID, model.Playing)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500) {
 		return
 	}
-	err = changeGameInfoRedis(gameID, -1, playing, nil)
+	err = changeGameInfoRedis(gameID, -1, model.Playing, nil)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
 		return
 	}
@@ -393,6 +395,12 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// room delete的event
+	err = pushCloseRoom(gameID)
+	if ErrorManner.ErrorRespone(err, UNEXPECT_BROADCAST_ERROR, w, 500) {
+		return
+	}
+
 	res := newResponse()
 	res.Status = success
 	res.Data["gameID"] = gameID
@@ -404,7 +412,7 @@ func gameStart(w http.ResponseWriter, r *http.Request) {
 // 取得RoomList
 func getRoomList(w http.ResponseWriter, r *http.Request) {
 	// 去db讀還開放玩家加入的遊戲
-	gameData, err := model.FindAllGameByState(opening)
+	gameData, err := model.FindAllGameByState(model.Opening)
 	if err != nil {
 		ErrorManner.ErrorRespone(err, UNEXPECT_DB_ERROR, w, 500)
 	}
@@ -447,6 +455,12 @@ func gameInfo(w http.ResponseWriter, r *http.Request) {
 	// 找gameType
 	gameInfo, err := getGameInfoByGameID(gameID)
 	if ErrorManner.ErrorRespone(err, UNEXPECT_REDIS_ERROR, w, 500) {
+		return
+	}
+
+	// 遊戲已經結束
+	if gameInfo.Status == model.Close {
+		ErrorManner.ErrorRespone(errors.New("Game over"), USER_ACTION_ERROR, w, 400)
 		return
 	}
 
