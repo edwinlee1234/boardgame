@@ -6,9 +6,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/go-redis/redis"
+	redisClient "boardgame_server/redis"
+
 	"github.com/joho/godotenv"
-	redistore "gopkg.in/boj/redistore.v1"
 )
 
 func connectRedisStore() {
@@ -21,7 +21,7 @@ func connectRedisStore() {
 	password := os.Getenv("REDIS_PASSWORD")
 	port := os.Getenv("REDIS_PORT")
 
-	store, err = redistore.NewRediStore(10, "tcp", host+":"+port, password, key)
+	err = redisClient.ConnectRedis(host, password, port)
 	if err != nil {
 		panic(err)
 	}
@@ -36,15 +36,10 @@ func connectRedis() {
 	host := os.Getenv("REDIS_HOST")
 	password := os.Getenv("REDIS_PASSWORD")
 	port := os.Getenv("REDIS_PORT")
+	key := os.Getenv("APP_KEY")
 
 	// 建立連線
-	goRedis = redis.NewClient(&redis.Options{
-		Addr:     host + ":" + port,
-		Password: password,
-		DB:       0, // use default DB
-	})
-
-	_, err = goRedis.Ping().Result()
+	redisClient.ConnectRedisStore(host, password, port, []byte(key))
 	if err != nil {
 		log.Panic(err)
 	}
@@ -53,7 +48,7 @@ func connectRedis() {
 // 用gameID去Redis讀遊戲資料
 func getGameInfoByGameID(gameID int32) (OpenGameData, error) {
 	rediskey := gameInfoRedisPrefix(gameID)
-	infoJSON, err := goRedis.Get(rediskey).Result()
+	infoJSON, err := redisClient.Client.Get(rediskey).Result()
 	if err != nil {
 		return OpenGameData{}, err
 	}
@@ -90,7 +85,7 @@ func changeGameInfoRedis(gameID int32, emptySeat int32, status int32, playersDat
 	}
 
 	gameInfoJSON, _ := json.Marshal(gameInfo)
-	goRedis.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
+	redisClient.Client.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
 
 	return nil
 }

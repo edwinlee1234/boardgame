@@ -1,15 +1,15 @@
 package main
 
 import (
+	ErrorManner "boardgame_server/error"
+	model "boardgame_server/model"
+	redisClient "boardgame_server/redis"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
-
-	ErrorManner "boardgame_server/error"
-	model "boardgame_server/model"
 
 	valid "github.com/asaskevich/govalidator"
 )
@@ -75,10 +75,10 @@ func gameInstance(w http.ResponseWriter, r *http.Request) {
 	gameInfo.Status = model.NotOpen
 
 	gameInfoJSON, _ := json.Marshal(gameInfo)
-	goRedis.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
+	redisClient.Client.Set(rediskey, gameInfoJSON, redisGameInfoExpire)
 
 	// 記到玩家session
-	session, err := store.Get(r, "userInfo")
+	session, err := redisClient.Store.Get(r, "userInfo")
 	session.Values["gameID"] = id
 	session.Save(r, w)
 
@@ -243,7 +243,7 @@ func gameRoomJoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 記到玩家session
-	session, _ := store.Get(r, "userInfo")
+	session, _ := redisClient.Store.Get(r, "userInfo")
 	session.Values["gameID"] = paramGameID
 	session.Save(r, w)
 
@@ -333,7 +333,7 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// redis delete
-		goRedis.Del(gameInfoRedisPrefix(gameID))
+		redisClient.Client.Del(gameInfoRedisPrefix(gameID))
 
 		// 踢人的推播，玩家全踢
 		err = pushKickPlayers(gameID, gameInfo.Players)
@@ -349,7 +349,7 @@ func gameRoomClose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// session去掉
-	session, _ := store.Get(r, "userInfo")
+	session, _ := redisClient.Store.Get(r, "userInfo")
 	session.Values["gameID"] = 0
 	session.Save(r, w)
 

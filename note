@@ -24,3 +24,9 @@ webSocket的Package->server.go
 
 全部API放一個recover的middleware
 讓server不會那麼容易爆掉
+
+把遊戲類的都放到game handler裡面
+不要全部都塞到gameController 亂到爆炸
+
+把gameController都折開
+多開controller的文件夾

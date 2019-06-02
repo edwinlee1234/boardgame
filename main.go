@@ -7,25 +7,16 @@ import (
 
 	middleware "boardgame_server/middleware"
 	pb "boardgame_server/proto"
+	redisClient "boardgame_server/redis"
 
-	"github.com/go-redis/redis"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
-	redistore "gopkg.in/boj/redistore.v1"
-)
-
-var (
-	key   = []byte("super-secret-key")
-	store *redistore.RediStore
 )
 
 // gamecenter address
 const (
 	gameCenterAddress = "gamecenter:50051"
 )
-
-// Redis
-var goRedis *redis.Client
 
 // GameCenter
 var gameCenter pb.GameCenterClient
@@ -95,7 +86,7 @@ func initInfo(w http.ResponseWriter, r *http.Request) {
 	gameInfo, err := getGameInfoByGameID(gameID)
 	if err != nil {
 		// TODO 這個是防止，redis已經死了，但user的gameID session還在，一律都變0好了，這邊可以會造成太多次的修改
-		session, _ := store.Get(r, "userInfo")
+		session, _ := redisClient.Store.Get(r, "userInfo")
 		session.Values["gameID"] = 0
 		session.Save(r, w)
 

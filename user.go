@@ -8,6 +8,7 @@ import (
 
 	ErrorManner "boardgame_server/error"
 	model "boardgame_server/model"
+	redisClient "boardgame_server/redis"
 
 	//Hash
 	"golang.org/x/crypto/bcrypt"
@@ -59,7 +60,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Save session
-	session, _ := store.Get(r, "userInfo")
+	session, _ := redisClient.Store.Get(r, "userInfo")
 	session.Values["login"] = true
 	session.Values["userName"] = userName
 	session.Values["userID"] = ID
@@ -134,7 +135,7 @@ func checkPasswordHash(password, hash string) bool {
 
 // 取得session的會員資料
 func getSessionUserInfo(r *http.Request) (authorization bool, userID int32, userName string, gameID int32, err error) {
-	session, err := store.Get(r, "userInfo")
+	session, err := redisClient.Store.Get(r, "userInfo")
 
 	if err != nil {
 		return false, 0, "", 0, err
@@ -150,7 +151,7 @@ func getSessionUserInfo(r *http.Request) (authorization bool, userID int32, user
 
 // 會員登出
 func logout(w http.ResponseWriter, r *http.Request) {
-	session, _ := store.Get(r, "userInfo")
+	session, _ := redisClient.Store.Get(r, "userInfo")
 	session.Values["login"] = false
 	session.Values["userName"] = ""
 	session.Values["userID"] = 0

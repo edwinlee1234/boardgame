@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	ErrorManner "boardgame_server/error"
+	redisClient "boardgame_server/redis"
 
 	"github.com/satori/go.uuid"
 )
@@ -32,7 +33,7 @@ func checkChannel(w http.ResponseWriter, r *http.Request) {
 
 // 取得UUID
 func getUserUUID(w http.ResponseWriter, r *http.Request) string {
-	session, _ := store.Get(r, "userInfo")
+	session, _ := redisClient.Store.Get(r, "userInfo")
 	// 用string的格式取出來
 	// *這個用法很重要
 	userUUID, ok := session.Values["uuid"].(string)

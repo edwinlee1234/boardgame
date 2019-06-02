@@ -31,6 +31,9 @@ const Abort = 5
 // GameStateList GameStateList
 type GameStateList []GameState
 
+// TODO 把這些的func都塞到struct裡面
+// 在model/main.go那邊把model的struct都new出來
+
 // CreateGame 新增一局遊戲
 func CreateGame(game string, seat int32, insertTime int64) (int32, error) {
 	stmt, err := DB.Prepare("INSERT INTO game_state (type, seat, create_timestamp) VALUES (?, ?, ?)")
