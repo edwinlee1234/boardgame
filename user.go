@@ -162,3 +162,9 @@ func logout(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(res)
 }
+
+func clearGame(w http.ResponseWriter, r *http.Request) {
+	session, _ := redisClient.Store.Get(r, "userInfo")
+	session.Values["gameID"] = ""
+	session.Save(r, w)
+}

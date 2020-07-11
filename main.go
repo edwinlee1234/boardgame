@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 
 	middleware "boardgame_server/middleware"
 	pb "boardgame_server/proto"
-	redisClient "boardgame_server/redis"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
@@ -60,6 +60,7 @@ func main() {
 	jaipur := gameAPI.PathPrefix("/jaipur").Subrouter()
 	jaipur.HandleFunc("/action", jaipurActionProcess).Methods("POST", "OPTIONS")
 
+	fmt.Println("API Server Runing")
 	err := http.ListenAndServe(":8300", r)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
@@ -86,9 +87,7 @@ func initInfo(w http.ResponseWriter, r *http.Request) {
 	gameInfo, err := getGameInfoByGameID(gameID)
 	if err != nil {
 		// TODO 這個是防止，redis已經死了，但user的gameID session還在，一律都變0好了，這邊可以會造成太多次的修改
-		session, _ := redisClient.Store.Get(r, "userInfo")
-		session.Values["gameID"] = 0
-		session.Save(r, w)
+		clearGame(w, r)
 
 		json.NewEncoder(w).Encode(res)
 		return
